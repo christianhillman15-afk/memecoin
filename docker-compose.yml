@@ -30,7 +30,10 @@ services:
     volumes:
       - memeradar-data:/data
     ports:
-      - "127.0.0.1:8000:8000"   # loopback only by default — see notes above
+      # Bind address is loopback-only by default (private). To expose the
+      # dashboard on the droplet's public IP, set BIND_ADDR=0.0.0.0 in .env
+      # (and set DASHBOARD_PASSWORD + a firewall). See DEPLOY.md.
+      - "${BIND_ADDR:-127.0.0.1}:8000:8000"
 
   # Optional public HTTPS reverse proxy with login. Enable with:
   #   docker compose --profile proxy up -d --build

@@ -54,15 +54,29 @@ docker compose logs -f      # watch it boot + scan; Ctrl-C to stop watching
 By default the app binds to **loopback only** (`127.0.0.1:8000`) — i.e. **not**
 reachable from the internet yet. Pick how you want to reach it:
 
-#### 5a. Quick & private: SSH tunnel (no domain needed)
-From your laptop:
+#### 5a. Simplest: expose on the public IP with a password (no domain)
+In `.env` set a password and flip the bind address, then restart:
+```bash
+# in .env
+DASHBOARD_PASSWORD=your-strong-password
+BIND_ADDR=0.0.0.0
+```
+```bash
+docker compose up -d
+```
+Open **http://YOUR_DROPLET_IP:8000** and log in (`admin` / your password). Add
+the firewall in step 6. Note: this is plain HTTP (not encrypted) — fine to start,
+but use 5b with a domain for HTTPS.
+
+#### 5b. Private: SSH tunnel (no domain, nothing exposed)
+Leave `BIND_ADDR=127.0.0.1` (default) and from your laptop run:
 ```bash
 ssh -L 8000:127.0.0.1:8000 root@YOUR_DROPLET_IP
 ```
 Then open **http://localhost:8000**. The bot runs on the server; the tunnel just
 forwards the dashboard to you. Nothing is exposed publicly.
 
-#### 5b. Public HTTPS with a login (recommended for "check it from my phone")
+#### 5c. Public HTTPS with a login (recommended for "check it from my phone")
 1. Point a DNS **A-record** (e.g. `memeradar.yourdomain.com`) at the Droplet IP.
 2. Edit [`Caddyfile`](Caddyfile): set your domain and a password hash:
    ```bash
@@ -78,9 +92,10 @@ forwards the dashboard to you. Nothing is exposed publicly.
 
 ### 6. DigitalOcean Cloud Firewall (do this for any public exposure)
 Networking → Firewalls → Create:
-- **Inbound:** SSH (22) from your IP; HTTP (80) + HTTPS (443) from anywhere
-  *(only if using the Caddy proxy)*.
-- Do **not** open 8000 to the world — keep it loopback (5a/5b handle access).
+- **Inbound:** SSH (22) from your IP. If using **5a**, add a rule for
+  TCP **8000** (from your IP if you want it locked down, or anywhere). If using
+  the Caddy proxy (**5c**), add HTTP (80) + HTTPS (443) instead.
+- Assign the firewall to your Droplet.
 
 ### Updating to the latest code
 ```bash
