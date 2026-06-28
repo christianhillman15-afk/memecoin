@@ -188,10 +188,13 @@ class SimulatedWalletProvider:
                          "insider": rng.uniform(3, 10),
                          "smart_money": rng.uniform(4, 14)}.get(w.kind, 1.0)
             usd = round(avg_trade * size_mult, 2)
+            # spread timestamps over the recent window so coordinated-buy
+            # ("bundling") timing tiers are realistic, not all simultaneous
+            ts = now() - rng.uniform(0, 180)
             events.append(WalletEvent(wallet=w.address, token=snap.address,
                                       symbol=snap.symbol, side=side, usd=usd,
                                       kind=w.kind, source="simulated",
-                                      win_rate=round(w.win_rate, 3)))
+                                      win_rate=round(w.win_rate, 3), ts=ts))
 
         whale_conc = self._concentration_heuristic(snap)
         return WalletFetch(events=events, whale_concentration=whale_conc,

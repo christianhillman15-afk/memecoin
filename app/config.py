@@ -70,7 +70,7 @@ class Config:
     telegram_alerts: bool = True              # master push-alert switch
     telegram_alert_min_severity: str = "success"   # info|success|warning|critical
     telegram_alert_kinds: list = field(
-        default_factory=lambda: ["dump", "multi_sell", "whale_buy", "exit"])
+        default_factory=lambda: ["dump", "multi_sell", "whale_buy", "exit", "bundle"])
     telegram_alert_cooldown_seconds: int = 900     # per-(kind,token) dedupe window
     telegram_alert_batch_seconds: int = 8          # coalesce alerts in this window
     telegram_alert_max_per_minute: int = 12        # outbound alert rate cap

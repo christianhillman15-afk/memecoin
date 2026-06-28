@@ -121,25 +121,30 @@
   <main class="tabpane" id="pane-charts">
     <div class="charts-layout">
       <aside class="chart-list panel">
-        <div class="panel-head"><h2>Coins</h2><span class="hint">live universe</span></div>
+        <div class="panel-head"><h2>Coins</h2><span class="hint" id="coinCount">live universe</span></div>
         <div class="chart-search"><input id="coinSearch" type="text" placeholder="Search symbol / name…" /></div>
         <div class="coin-list" id="coinList"><div class="empty">Loading coins…</div></div>
         <div class="manual">
           <div class="manual-label">Or chart any pair / token address</div>
           <input id="manualAddr" type="text" placeholder="pair or token address" />
-          <button id="manualGo" class="btn">Load</button>
+          <button id="manualGo" class="btn">Load chart</button>
         </div>
       </aside>
       <section class="chart-main panel">
         <div class="panel-head">
           <h2 id="chartTitle">Select a coin</h2>
-          <span class="hint">candles, timeframes &amp; tools are built into the DexScreener chart ↘</span>
+          <div class="chart-view-toggle" id="chartViewToggle" style="display:none">
+            <button class="vbtn active" data-view="profile">Profile</button>
+            <button class="vbtn" data-view="chart">Chart</button>
+            <a class="vbtn ext" id="dexLink" href="#" target="_blank" rel="noopener">DexScreener ↗</a>
+          </div>
         </div>
-        <div class="chart-frame-wrap" id="chartFrameWrap">
+        <div class="chart-body" id="chartBody">
           <div class="chart-placeholder" id="chartPlaceholder">
             <div class="ph-logo">◎</div>
-            <p>Pick a coin on the left to load its live DexScreener chart.</p>
-            <p class="ph-sub">Full TradingView-style charting — candles, intervals, indicators, drawing tools.</p>
+            <p>Pick a coin on the left for its full profile, or jump straight to the chart.</p>
+            <p class="ph-sub">Every coin: live DexScreener stats &amp; our pump/dump intel, plus a full
+              TradingView-style chart (candles, intervals, indicators).</p>
           </div>
         </div>
       </section>
@@ -152,34 +157,67 @@
       <h2>Wallet intelligence</h2>
       <div class="wallet-counts" id="walletCounts"></div>
     </div>
-    <section class="panel span-full" id="freshLoadouts">
-      <div class="panel-head">
-        <h2>🚀 Fresh loadouts</h2>
-        <span class="hint">young coins a strong team is loading early · forward-looking</span>
+    <nav class="subtabs" id="walletSubtabs">
+      <button class="subtab active" data-sub="loadouts">🚀 Loadouts</button>
+      <button class="subtab" data-sub="wallets">👛 Wallets</button>
+      <button class="subtab" data-sub="cabals">👥 Cabals</button>
+      <button class="subtab" data-sub="bundles">📦 Bundles</button>
+    </nav>
+
+    <section class="subpane active" id="sub-loadouts">
+      <div class="panel span-full">
+        <div class="panel-head"><h2>🚀 Fresh loadouts</h2>
+          <span class="hint">young coins a strong team is loading early · forward-looking</span></div>
+        <div class="loadout-grid" id="loadoutGrid"><div class="empty">Watching for fresh team accumulation…</div></div>
       </div>
-      <div class="loadout-grid" id="loadoutGrid"><div class="empty">Watching for fresh team accumulation…</div></div>
     </section>
-    <div class="wallet-cats">
-      <section class="panel wcat" data-cat="whales">
-        <div class="panel-head"><h2>🐋 Whales <span class="cat-n" id="n-whales"></span></h2><span class="hint">richest / biggest size</span></div>
-        <div class="table-wrap scroll"><table class="wallet-table"><thead><tr><th>Wallet</th><th class="num">Win%</th><th class="num">Net</th><th class="num">Volume</th><th class="num">Coins</th></tr></thead><tbody id="tb-whales"></tbody></table></div>
-      </section>
-      <section class="panel wcat" data-cat="insiders">
-        <div class="panel-head"><h2>🕵️ Insiders <span class="cat-n" id="n-insiders"></span></h2><span class="hint">early / first buyers</span></div>
-        <div class="table-wrap scroll"><table class="wallet-table"><thead><tr><th>Wallet</th><th class="num">Win%</th><th class="num">Net</th><th class="num">Coins</th><th class="num">Acts</th></tr></thead><tbody id="tb-insiders"></tbody></table></div>
-      </section>
-      <section class="panel wcat" data-cat="smart_money">
-        <div class="panel-head"><h2>🧠 Smart money <span class="cat-n" id="n-smart_money"></span></h2><span class="hint">high win-rate &amp; profitable</span></div>
-        <div class="table-wrap scroll"><table class="wallet-table"><thead><tr><th>Wallet</th><th class="num">Win%</th><th class="num">Net</th><th class="num">Coins</th><th class="num">Acts</th></tr></thead><tbody id="tb-smart_money"></tbody></table></div>
-      </section>
-      <section class="panel wcat" data-cat="pump_dumpers">
-        <div class="panel-head"><h2>💣 Pump &amp; dump <span class="cat-n" id="n-pump_dumpers"></span></h2><span class="hint">serial coordinated dumpers</span></div>
-        <div class="table-wrap scroll"><table class="wallet-table"><thead><tr><th>Wallet</th><th class="num">Dumps</th><th class="num">Sold</th><th class="num">Net</th><th class="num">Coins</th></tr></thead><tbody id="tb-pump_dumpers"></tbody></table></div>
-      </section>
-    </div>
-    <section class="panel span-full">
-      <div class="panel-head"><h2>👥 Cabal groups</h2><span class="hint">wallets that repeatedly dump the same coins together</span></div>
-      <div class="cabals" id="cabals"><div class="empty">Detecting coordinated groups… (needs a few scans)</div></div>
+
+    <section class="subpane" id="sub-wallets">
+      <div class="panel span-full">
+        <div class="panel-head"><h2>Tracked wallets</h2><span class="hint" id="walletListCount"></span></div>
+        <div class="wallet-controls">
+          <input id="walletSearch" type="text" placeholder="🔎 Search wallet address…" />
+          <select id="walletCat">
+            <option value="all">All types</option>
+            <option value="whale">🐋 Whales</option>
+            <option value="insider">🕵️ Insiders</option>
+            <option value="smart_money">🧠 Smart money</option>
+            <option value="pump_dump">💣 Pump &amp; dump</option>
+          </select>
+          <select id="walletSort">
+            <option value="worth_desc">Richest → poorest</option>
+            <option value="worth_asc">Poorest → richest</option>
+            <option value="buy_desc">Buy amount: high → low</option>
+            <option value="buy_asc">Buy amount: low → high</option>
+            <option value="recent">Date added: recent</option>
+            <option value="oldest">Date added: oldest</option>
+            <option value="win_desc">Win rate: high → low</option>
+            <option value="events_desc">Most active</option>
+          </select>
+        </div>
+        <div class="table-wrap scroll-lg">
+          <table id="walletListTable"><thead><tr>
+            <th>Wallet</th><th>Type</th><th class="num">Worth</th><th class="num">Net</th>
+            <th class="num">Bought</th><th class="num">Win%</th><th class="num">Coins</th><th class="num">Added</th>
+          </tr></thead><tbody><tr><td colspan="8" class="empty">Loading wallets…</td></tr></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <section class="subpane" id="sub-cabals">
+      <div class="panel span-full">
+        <div class="panel-head"><h2>👥 Cabal groups</h2>
+          <span class="hint">wallets that repeatedly trade the same coins together</span></div>
+        <div class="cabals" id="cabals"><div class="empty">Detecting coordinated groups… (needs a few scans)</div></div>
+      </div>
+    </section>
+
+    <section class="subpane" id="sub-bundles">
+      <div class="panel span-full">
+        <div class="panel-head"><h2>📦 Bundles</h2>
+          <span class="hint">coordinated multi-wallet buys · &lt;1m = synchronized · 5–20m = coordinated · same-day = minor</span></div>
+        <div class="bundle-list" id="bundleList"><div class="empty">No coordinated buys detected yet.</div></div>
+      </div>
     </section>
   </main>
 

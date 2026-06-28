@@ -16,7 +16,7 @@ from .format import h, usd
 SEVERITY_RANK = {"info": 0, "success": 1, "warning": 2, "critical": 3}
 
 KIND_EMOJI = {"pump": "🚀", "dump": "🔻", "multi_sell": "🚨",
-              "whale_buy": "🐋", "entry": "🟢", "exit": "🔴"}
+              "whale_buy": "🐋", "entry": "🟢", "exit": "🔴", "bundle": "📦"}
 
 
 def dedupe_key(sig: Signal) -> tuple[str, str]:

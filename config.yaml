@@ -63,6 +63,7 @@ telegram_alert_kinds:                 # which signal kinds push by default
   - multi_sell
   - whale_buy
   - exit
+  - bundle
 telegram_alert_cooldown_seconds: 900  # per-(kind,token) dedupe window
 telegram_alert_batch_seconds: 8       # coalesce bursts into one message
 telegram_alert_max_per_minute: 12     # outbound alert rate cap

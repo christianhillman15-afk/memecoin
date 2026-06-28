@@ -53,6 +53,7 @@
   let equityChart = null;
   let lastSnapshot = null;
   let board = [];
+  let walletListData = [];
   let chain = "solana";
   let activeTab = "overview";
   let selectedPair = null;
@@ -132,7 +133,7 @@
         const v = t.price_change?.[w] ?? 0;
         return `<td class="num ${cls(v)}">${fmtPct(v)}</td>`;
       };
-      return `<tr data-pair="${esc(t.pair_address)}" data-chain="${esc(t.chain)}" data-sym="${esc(t.symbol)}" title="Click to chart ${esc(t.symbol)}">
+      return `<tr data-addr="${esc(t.address)}" title="Click to open ${esc(t.symbol)}">
         <td><div class="tok"><span class="link-sym">${esc(t.symbol)}</span>
           <small>${esc((t.name||"").slice(0,18))} · ${Math.round(t.age_minutes)}m</small></div></td>
         <td><span class="badge ${esc(d.phase)}">${esc(d.phase)}</span></td>
@@ -151,7 +152,7 @@
   }
 
   // ---------- signals ----------
-  const SIG_ICON = { pump: "▲", dump: "▼", multi_sell: "⚠", whale_buy: "◆", entry: "▶", exit: "■" };
+  const SIG_ICON = { pump: "▲", dump: "▼", multi_sell: "⚠", whale_buy: "◆", entry: "▶", exit: "■", bundle: "📦" };
   function renderSignals(signals) {
     const el = document.getElementById("signalsFeed");
     if (!signals || !signals.length) { el.innerHTML = `<div class="empty">Waiting for signals…</div>`; return; }
@@ -245,38 +246,131 @@
   }
 
   // ================= CHARTS TAB =================
+  let selectedCoinAddr = null;
+  let chartView = "profile";
+
   function chartEmbedUrl(ch, pair) {
     return `https://dexscreener.com/${encodeURIComponent(ch)}/${encodeURIComponent(pair)}` +
       `?embed=1&theme=dark&trades=0&info=0`;
   }
-  function loadChart(ch, pair, label) {
-    if (!pair) return;
-    selectedPair = pair;
-    const wrap = document.getElementById("chartFrameWrap");
-    document.getElementById("chartTitle").textContent = label || "Chart";
-    wrap.innerHTML = `<iframe src="${esc(chartEmbedUrl(ch, pair))}" allow="clipboard-write" loading="lazy"></iframe>`;
-    document.querySelectorAll(".coin-row").forEach((r) =>
-      r.classList.toggle("active", r.dataset.pair === pair));
-  }
+  function boardByAddr(addr) { return board.find((b) => b.token.address === addr); }
+
   function renderCoinList(filter) {
     const el = document.getElementById("coinList");
     const q = (filter || "").trim().toLowerCase();
     let items = board;
     if (q) items = board.filter((b) => (b.token.symbol + " " + b.token.name).toLowerCase().includes(q));
+    document.getElementById("coinCount").textContent = `${board.length} coins`;
     if (!items.length) { el.innerHTML = `<div class="empty">No coins.</div>`; return; }
-    el.innerHTML = items.slice(0, 60).map((b) => {
+    el.innerHTML = items.slice(0, 80).map((b) => {
       const t = b.token, d = b.detection;
       const chg = t.price_change?.h1 ?? 0;
-      return `<div class="coin-row" data-pair="${esc(t.pair_address)}" data-chain="${esc(t.chain)}" data-label="${esc(t.symbol)} · ${esc(t.name)}">
-        <div><div class="c-sym">${esc(t.symbol)}</div><div class="c-name">${esc((t.name||"").slice(0,20))}</div></div>
-        <div style="text-align:right"><div class="c-chg ${cls(chg)}">${fmtPct(chg)}</div>
+      return `<div class="coin-row" data-addr="${esc(t.address)}">
+        <div class="coin-main"><div class="c-sym">${esc(t.symbol)}</div><div class="c-name">${esc((t.name||"").slice(0,20))}</div></div>
+        <div class="coin-right"><div class="c-chg ${cls(chg)}">${fmtPct(chg)}</div>
           <div class="c-pump">P${Math.round(d.pump_score)} · D${Math.round(d.dump_risk)}</div></div>
+        <button class="coin-chart-btn" data-chartaddr="${esc(t.address)}" title="Open chart">📈</button>
       </div>`;
     }).join("");
-    document.querySelectorAll("#coinList .coin-row").forEach((r) => {
-      r.addEventListener("click", () => loadChart(r.dataset.chain, r.dataset.pair, r.dataset.label));
-      if (r.dataset.pair === selectedPair) r.classList.add("active");
+    el.querySelectorAll(".coin-row").forEach((r) => {
+      r.addEventListener("click", (e) => {
+        if (e.target.closest(".coin-chart-btn")) { selectCoin(r.dataset.addr, "chart"); return; }
+        selectCoin(r.dataset.addr, "profile");
+      });
+      if (r.dataset.addr === selectedCoinAddr) r.classList.add("active");
     });
+  }
+
+  function selectCoin(addr, view) {
+    const entry = boardByAddr(addr);
+    if (!entry) return;
+    selectedCoinAddr = addr;
+    chartView = view || "profile";
+    const t = entry.token;
+    document.getElementById("chartTitle").innerHTML =
+      `${esc(t.symbol)} <span class="ct-name">${esc((t.name || "").slice(0, 24))}</span>`;
+    const toggle = document.getElementById("chartViewToggle");
+    toggle.style.display = "";
+    document.getElementById("dexLink").href = t.url || "#";
+    toggle.querySelectorAll(".vbtn[data-view]").forEach((b) =>
+      b.classList.toggle("active", b.dataset.view === chartView));
+    document.querySelectorAll("#coinList .coin-row").forEach((r) =>
+      r.classList.toggle("active", r.dataset.addr === addr));
+    renderChartBody();
+  }
+
+  function renderChartBody() {
+    const body = document.getElementById("chartBody");
+    const entry = selectedCoinAddr ? boardByAddr(selectedCoinAddr) : null;
+    if (!entry) return;
+    const t = entry.token;
+    if (chartView === "chart") {
+      body.innerHTML = `<div class="chart-frame-wrap"><iframe src="${esc(chartEmbedUrl(t.chain, t.pair_address))}" allow="clipboard-write" loading="lazy"></iframe></div>`;
+    } else {
+      body.innerHTML = renderCoinProfile(entry);
+    }
+  }
+
+  function setChartView(view) {
+    chartView = view;
+    document.querySelectorAll("#chartViewToggle .vbtn[data-view]").forEach((b) =>
+      b.classList.toggle("active", b.dataset.view === view));
+    renderChartBody();
+  }
+
+  function loadChartManual(addr) {
+    // no board entry for a pasted address — go straight to the chart
+    selectedCoinAddr = null; chartView = "chart";
+    document.getElementById("chartTitle").textContent = addr.slice(0, 12) + "…";
+    document.getElementById("chartViewToggle").style.display = "none";
+    document.getElementById("chartBody").innerHTML =
+      `<div class="chart-frame-wrap"><iframe src="${esc(chartEmbedUrl(chain, addr))}" allow="clipboard-write" loading="lazy"></iframe></div>`;
+  }
+
+  function renderCoinProfile(b) {
+    const t = b.token, d = b.detection, i = b.intel;
+    const pc = t.price_change || {}, vol = t.volume || {}, tx = t.txns || {};
+    const chgCell = (w) => `<div class="cp-cell"><span class="cp-lbl">${w}</span><span class="${cls(pc[w])}">${fmtPct(pc[w] || 0)}</span></div>`;
+    const volCell = (w) => `<div class="cp-cell"><span class="cp-lbl">vol ${w}</span><span class="mut">${fmtCompact(vol[w] || 0)}</span></div>`;
+    const txW = (w) => { const x = tx[w] || {}; return `<div class="cp-cell"><span class="cp-lbl">${w} tx</span><span><span class="up">${x.buys||0}</span>/<span class="down">${x.sells||0}</span></span></div>`; };
+    const auth = (renounced, label) => renounced === false
+      ? `<span class="rug-bad">⛔ ${label} authority live</span>`
+      : (renounced === true ? `<span class="rug-ok">✅ ${label} renounced</span>` : `<span class="mut">${label}: ?</span>`);
+    const flags = (d.flags || []).map((f) => `<span class="tag-flag">${f.replace(/_/g, " ")}</span>`).join("");
+    return `<div class="coin-profile">
+      <div class="cp-top">
+        <div class="cp-price">${fmtPrice(t.price_usd)}<span class="cp-age">· ${Math.round(t.age_minutes)}m old</span></div>
+        <span class="badge ${esc(d.phase)}">${esc(d.phase)}</span>
+      </div>
+      <div class="cp-grid">${chgCell("m5")}${chgCell("h1")}${chgCell("h6")}${chgCell("h24")}</div>
+      <div class="cp-stats">
+        <div class="cp-stat"><div class="lbl">Liquidity</div><div class="val">${fmtCompact(t.liquidity_usd)}</div></div>
+        <div class="cp-stat"><div class="lbl">Market cap</div><div class="val">${fmtCompact(t.market_cap)}</div></div>
+        <div class="cp-stat"><div class="lbl">FDV</div><div class="val">${fmtCompact(t.fdv)}</div></div>
+        <div class="cp-stat"><div class="lbl">Vol 24h</div><div class="val">${fmtCompact(vol.h24 || 0)}</div></div>
+      </div>
+      <div class="cp-grid">${volCell("m5")}${volCell("h1")}${volCell("h6")}${txW("h1")}</div>
+      <div class="prof-section">MemeRadar intel</div>
+      <div class="cp-bars">
+        <div class="cp-bar"><span>Pump</span>${bar("pump", d.pump_score)}</div>
+        <div class="cp-bar"><span>Dump risk</span>${bar("dump", d.dump_risk)}</div>
+        <div class="cp-bar"><span>Safety</span>${bar("safe", d.safety)}</div>
+        <div class="cp-bar"><span>Opportunity</span>${bar("opp", d.opportunity)}</div>
+      </div>
+      <div class="cp-meta">
+        smart $ <b class="${cls(i.smart_inflow_usd)}">${fmtCompact(i.smart_inflow_usd)}</b> ·
+        whale conc <b>${Math.round(i.whale_concentration)}%</b> ·
+        whales ${i.whale_count} · insiders ${i.insider_count}
+        ${i.confirmed_multi_sell ? '· <span class="rug-bad">🚨 multi-sell</span>' : ""}
+      </div>
+      <div class="cp-rug">${auth(t.mint_renounced, "Mint")} ${auth(t.freeze_renounced, "Freeze")}</div>
+      ${flags ? `<div class="cp-flags">${flags}</div>` : ""}
+      ${(d.reasons||[]).length ? `<div class="cp-reasons">${esc((d.reasons||[]).slice(0,4).join(" · "))}</div>` : ""}
+      <div class="cp-actions">
+        <button class="btn" onclick="" data-view="chart" id="cpChartBtn">📈 View chart</button>
+        <a class="btn" href="${esc(t.url)}" target="_blank" rel="noopener">DexScreener ↗</a>
+      </div>
+    </div>`;
   }
 
   // ================= WALLETS TAB =================
@@ -339,6 +433,73 @@
         <div class="cabal-members">${c.members.map((m) => `<code class="wallet-link" data-wallet="${esc(m.wallet)}" title="${esc(m.wallet)}">${esc(m.wallet_short)}</code>`).join("")}</div>
         <div class="cabal-tokens">coins: <b>${esc((c.shared_tokens||[]).join(", "))}</b></div>
       </div>`).join("");
+  }
+
+  // ---- unified, filterable/searchable wallet list ----
+  const WALLET_SORTERS = {
+    worth_desc: (a, b) => b.worth_usd - a.worth_usd,
+    worth_asc: (a, b) => a.worth_usd - b.worth_usd,
+    buy_desc: (a, b) => b.buy_usd - a.buy_usd,
+    buy_asc: (a, b) => a.buy_usd - b.buy_usd,
+    recent: (a, b) => b.first_seen - a.first_seen,
+    oldest: (a, b) => a.first_seen - b.first_seen,
+    win_desc: (a, b) => b.win_rate - a.win_rate,
+    events_desc: (a, b) => b.events - a.events,
+  };
+  function applyWalletFilters() {
+    const q = (document.getElementById("walletSearch")?.value || "").trim().toLowerCase();
+    const cat = document.getElementById("walletCat")?.value || "all";
+    const sort = document.getElementById("walletSort")?.value || "worth_desc";
+    let rows = walletListData.slice();
+    if (cat === "pump_dump") rows = rows.filter((r) => r.dump_hits >= 2);
+    else if (cat !== "all") rows = rows.filter((r) => r.kind === cat);
+    if (q) rows = rows.filter((r) => r.wallet.toLowerCase().includes(q));
+    rows.sort(WALLET_SORTERS[sort] || WALLET_SORTERS.worth_desc);
+    renderWalletRows(rows);
+  }
+  function renderWalletRows(rows) {
+    const tb = document.querySelector("#walletListTable tbody");
+    const hint = document.getElementById("walletListCount");
+    if (hint) hint.textContent = `${rows.length} shown · ${walletListData.length} tracked`;
+    if (!rows.length) {
+      tb.innerHTML = `<tr><td colspan="8" class="empty">No wallets match.</td></tr>`; return;
+    }
+    tb.innerHTML = rows.slice(0, 200).map((w) => `
+      <tr class="wallet-link" data-wallet="${esc(w.wallet)}">
+        <td><code class="mut">${esc(w.wallet_short)}</code><br><small class="mut">${esc((w.tokens||[]).slice(0,3).join(" "))}</small></td>
+        <td><span class="badge ${esc(w.kind)}">${esc(w.kind.replace("_"," "))}</span></td>
+        <td class="num">${fmtCompact(w.worth_usd)}</td>
+        <td class="num ${cls(w.net_usd)}">${fmtCompact(w.net_usd)}</td>
+        <td class="num mut">${fmtCompact(w.buy_usd)}</td>
+        <td class="num mut">${w.win_rate}%</td>
+        <td class="num mut">${w.token_count}</td>
+        <td class="num mut">${ago(w.first_seen)}</td>
+      </tr>`).join("");
+  }
+
+  // ---- bundles (coordinated multi-wallet buys) ----
+  const BUNDLE_SEV = { critical: "🔴", warning: "🟠", info: "🟡" };
+  function renderBundles(list) {
+    const el = document.getElementById("bundleList");
+    if (!list || !list.length) {
+      el.innerHTML = `<div class="empty">No coordinated buys detected yet — watching for wallets bundling into the same coin.</div>`; return;
+    }
+    el.innerHTML = list.map((b) => {
+      const wallets = (b.wallets || []).map((w) =>
+        `<code class="wallet-link" data-wallet="${esc(w.wallet)}" title="${esc(w.wallet)}">${esc(w.wallet_short)} ${fmtCompact(w.usd)}</code>`).join("");
+      const cabalTag = b.cabal_id ? `<span class="cabal-link team-cabal" data-cabal="${esc(b.cabal_id)}">👥 ${esc(b.cabal_id)}</span>` : "";
+      const spanTxt = b.span_seconds < 90 ? `${Math.round(b.span_seconds)}s apart`
+        : `${Math.round(b.span_seconds/60)}m apart`;
+      return `<div class="bundle-card sev-${esc(b.severity)}">
+        <div class="bn-head">
+          <div>${BUNDLE_SEV[b.severity]||""} <a href="${esc(b.url)}" target="_blank" rel="noopener" class="bn-sym">${esc(b.symbol)}</a>
+            <span class="bn-label">${esc(b.label)}</span></div>
+          <span class="bn-count">${b.wallet_count} wallets · ${fmtCompact(b.total_usd)}</span>
+        </div>
+        <div class="bn-meta">${spanTxt} · ${Math.round(b.age_minutes)}m old · ${esc(b.phase)} · vol1h ${fmtCompact(b.volume_h1)} · pump ${Math.round(b.pump_score)} ${cabalTag}</div>
+        <div class="bn-wallets">${wallets}</div>
+      </div>`;
+    }).join("");
   }
 
   // ================= INFLUENCERS TAB =================
@@ -549,7 +710,13 @@
     lastSnapshot = s;
     if (s.portfolio) renderKpis(s.portfolio);
     if (s.positions) renderPositions(s.positions);
-    if (s.board) { board = s.board; renderBoard(board); if (activeTab === "charts") renderCoinList(document.getElementById("coinSearch").value); }
+    if (s.board) {
+      board = s.board; renderBoard(board);
+      if (activeTab === "charts") {
+        renderCoinList(document.getElementById("coinSearch").value);
+        if (selectedCoinAddr && chartView === "profile") renderChartBody();  // live profile refresh
+      }
+    }
     if (s.status) renderStatus(s.status);
   }
 
@@ -566,12 +733,17 @@
   }
   async function refreshWalletsTab() {
     try {
-      const [cat, lo] = await Promise.all([
+      const [cat, lo, all, bun] = await Promise.all([
         fetch("/api/wallets/categorized").then((r) => r.json()),
         fetch("/api/loadouts").then((r) => r.json()),
+        fetch("/api/wallets/all").then((r) => r.json()),
+        fetch("/api/bundles").then((r) => r.json()),
       ]);
-      renderCategorized(cat);
+      renderCategorized(cat);          // counts + cabals
       renderLoadouts(lo);
+      walletListData = all || [];
+      applyWalletFilters();
+      renderBundles(bun);
     } catch (e) { /* ignore */ }
   }
   async function refreshInfluencers() {
@@ -590,21 +762,41 @@
   document.querySelectorAll(".tab").forEach((t) =>
     t.addEventListener("click", () => switchTab(t.dataset.tab)));
 
-  // board row → chart
+  // board row → open coin in Charts tab
   document.querySelector("#boardTable tbody").addEventListener("click", (e) => {
-    const tr = e.target.closest("tr[data-pair]");
-    if (!tr || !tr.dataset.pair) return;
+    const tr = e.target.closest("tr[data-addr]");
+    if (!tr || !tr.dataset.addr) return;
     switchTab("charts");
-    loadChart(tr.dataset.chain, tr.dataset.pair, tr.dataset.sym);
+    selectCoin(tr.dataset.addr, "profile");
   });
   // charts controls
   document.getElementById("coinSearch").addEventListener("input", (e) => renderCoinList(e.target.value));
   document.getElementById("manualGo").addEventListener("click", () => {
     const v = document.getElementById("manualAddr").value.trim();
-    if (v) loadChart(chain, v, v.slice(0, 10) + "…");
+    if (v) loadChartManual(v);
   });
   document.getElementById("manualAddr").addEventListener("keydown", (e) => {
     if (e.key === "Enter") document.getElementById("manualGo").click();
+  });
+  // chart view toggle (Profile / Chart) + the in-profile "View chart" button
+  document.getElementById("chartViewToggle").addEventListener("click", (e) => {
+    const b = e.target.closest(".vbtn[data-view]");
+    if (b) setChartView(b.dataset.view);
+  });
+  document.getElementById("chartBody").addEventListener("click", (e) => {
+    if (e.target.closest("#cpChartBtn")) setChartView("chart");
+  });
+  // wallet sub-tabs
+  document.querySelectorAll("#walletSubtabs .subtab").forEach((t) =>
+    t.addEventListener("click", () => {
+      document.querySelectorAll("#walletSubtabs .subtab").forEach((x) => x.classList.toggle("active", x === t));
+      document.querySelectorAll("#pane-wallets .subpane").forEach((p) =>
+        p.classList.toggle("active", p.id === "sub-" + t.dataset.sub));
+    }));
+  // wallet filter controls
+  ["walletSearch", "walletCat", "walletSort"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(id === "walletSearch" ? "input" : "change", applyWalletFilters);
   });
 
   // ---------- websocket ----------

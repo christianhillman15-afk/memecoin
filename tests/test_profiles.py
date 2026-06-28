@@ -101,6 +101,58 @@ def test_wallet_profile_untracked_resolves():
     assert p["holdings"]
 
 
+def _buy(addr, wallet, usd, kind, ts):
+    return WalletEvent(wallet=wallet, token=addr, symbol="FRESH", side="buy",
+                       usd=usd, kind=kind, source="simulated", win_rate=0.6, ts=ts)
+
+
+def test_bundle_critical_synchronized():
+    intel = WalletIntel(CFG)
+    snap = _snap()
+    now = time.time()
+    evs = [_buy(snap.address, f"BW{i}-xxxxxxxxxxxxxxxxxxxxxxxx-{i}", 6000, "whale", now - 2)
+           for i in range(3)]  # 3 distinct wallets within a minute
+    ti = intel.ingest(snap, evs, 30, "simulated")
+    intel.compute_bundles([_board_item(snap, ti)])
+    bs = intel.bundles()
+    assert bs and bs[0]["severity"] == "critical" and bs[0]["wallet_count"] >= 3
+
+
+def test_bundle_coordinated_window():
+    intel = WalletIntel(CFG)
+    snap = _snap()
+    now = time.time()
+    evs = [_buy(snap.address, "BW-aaaaaaaaaaaaaaaaaaaaaaaaaa", 5000, "whale", now - 600),
+           _buy(snap.address, "BW-bbbbbbbbbbbbbbbbbbbbbbbbbb", 5000, "smart_money", now - 120)]
+    ti = intel.ingest(snap, evs, 30, "simulated")
+    intel.compute_bundles([_board_item(snap, ti)])
+    bs = intel.bundles()
+    assert bs and bs[0]["severity"] == "warning"
+
+
+def test_no_bundle_single_wallet():
+    intel = WalletIntel(CFG)
+    snap = _snap()
+    now = time.time()
+    evs = [_buy(snap.address, "BW-solo-xxxxxxxxxxxxxxxxxxxx", 5000, "whale", now - i * 10)
+           for i in range(3)]  # same wallet repeatedly = not a bundle
+    ti = intel.ingest(snap, evs, 30, "simulated")
+    intel.compute_bundles([_board_item(snap, ti)])
+    assert not intel.bundles()
+
+
+def test_wallet_list_has_worth_and_is_sortable():
+    intel = WalletIntel(CFG)
+    snap = _snap()
+    intel.ingest(snap, _smart_buys(snap.address, n=3), 30, "simulated")
+    rows = intel.wallet_list()
+    assert rows
+    assert all("worth_usd" in r and "first_seen" in r for r in rows)
+    assert all(r["kind"] != "retail" for r in rows)
+    rows.sort(key=lambda r: r["worth_usd"], reverse=True)  # richest-first must work
+    assert rows[0]["worth_usd"] >= rows[-1]["worth_usd"]
+
+
 def test_career_grows_across_scans():
     intel = WalletIntel(CFG)
     snap = _snap()

@@ -141,16 +141,25 @@ The dashboard is organised into four tabs:
 | **Trade history** | Closed paper trades with entry/exit, P&L, and exit reason. |
 
 ### 📈 Live Charts
-The **full DexScreener chart** (TradingView-powered — candles, timeframes,
-indicators, drawing tools) embedded per coin. Pick any coin from the live
-scanned universe on the left, or paste any pair/token address. These are the
-only price charts the app uses — straight from DexScreener.
+Every scanned coin gets a **profile** (full DexScreener stats — price, all
+change/volume windows, txns, liquidity/mcap/FDV, age, rug-authority status —
+plus MemeRadar's pump/dump/safety/opportunity scores and reasons) with a toggle
+to the **full DexScreener chart** (TradingView-powered candles, timeframes,
+indicators). Each coin in the list has a 📈 button to jump straight to its
+chart, or paste any pair/token address.
 
 ### 👛 Wallets
-Tracked wallets organised into categories: **🐋 Whales** (biggest size),
-**🕵️ Insiders** (early buyers), **🧠 Smart money** (high win-rate & profitable),
-**💣 Pump & dump** (serial coordinated dumpers), and **👥 Cabal groups** —
-clusters of wallets that repeatedly trade the *same* coins together.
+Organised into sub-tabs:
+- **🚀 Loadouts** — young coins a strong team is accumulating (see below).
+- **👛 Wallets** — one searchable, filterable table of every tracked wallet:
+  sort by **richest→poorest**, **buy amount**, **date added**, win rate, or
+  activity; filter by type; **search by address**.
+- **👥 Cabals** — clusters of wallets that repeatedly trade the *same* coins.
+- **📦 Bundles** — coordinated multi-wallet **buys** of the same coin, tiered by
+  timing: **<1 min = synchronized** (strong), **<20 min = coordinated**,
+  **same-day = minor**. Also pushed as alerts. (Most precise with real wallet
+  data; the simulated feed flags frequently because its smart wallets are very
+  active.)
 
 - **🚀 Fresh loadouts** (top of the tab): young coins where a *strong team* of
   good wallets is accumulating early — the bullish, forward-looking inverse of

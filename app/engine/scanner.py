@@ -55,6 +55,7 @@ class Scanner:
         self._scan_lock = asyncio.Lock()  # serialises loop + manual /scan
         self._on_update: list[Callable[[], None]] = []
         self._on_signal: list[Callable[[Signal], None]] = []
+        self._alerted_bundles: set[str] = set()
 
     @property
     def is_scanning(self) -> bool:
@@ -170,7 +171,9 @@ class Scanner:
 
         # forward-looking "fresh loadout" detection + per-wallet career curves
         self.intel.compute_loadouts(board)
+        self.intel.compute_bundles(board)
         self.intel.record_careers()
+        self._emit_bundle_signals()
 
         # update influencer wallet activity against the live universe
         self.influencers.update(snapshots, self.scan_count)
@@ -201,6 +204,20 @@ class Scanner:
                               f"Smart-money accumulating {snap.symbol} "
                               f"(${intel.smart_inflow_usd:,.0f} net in)",
                               meta={"inflow": intel.smart_inflow_usd, "url": snap.url}))
+
+    def _emit_bundle_signals(self) -> None:
+        """Flag coordinated multi-wallet buys (bundling) once per occurrence."""
+        active: set[str] = set()
+        for b in self.intel.bundles(20):
+            active.add(b["address"])
+            if b["severity"] in ("critical", "warning") and b["address"] not in self._alerted_bundles:
+                self._alerted_bundles.add(b["address"])
+                self._emit(Signal("bundle", b["severity"], b["address"], b["symbol"],
+                                  f"Bundle on {b['symbol']}: {b['wallet_count']} wallets bought "
+                                  f"{b['label']} (${b['total_usd']:,.0f})",
+                                  meta={"wallets": b["wallet_count"], "label": b["label"],
+                                        "url": b["url"]}))
+        self._alerted_bundles &= active  # allow re-alert if it recurs later
 
     def _manage_positions(self, snaps: dict[str, TokenSnapshot],
                           dets: dict[str, DetectionResult],

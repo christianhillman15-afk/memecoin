@@ -55,6 +55,8 @@ class WalletIntel:
         self._touched: set[str] = set()
         # forward-looking "fresh loadout" feed, keyed by token address
         self._loadout_feed: dict[str, dict[str, Any]] = {}
+        # bundling feed (coordinated multi-wallet buys), keyed by token address
+        self._bundle_feed: dict[str, dict[str, Any]] = {}
 
     # ------------------------------------------------------------------ #
     # ingestion
@@ -281,6 +283,26 @@ class WalletIntel:
         rows = [self._row(w) for w in self.registry.values() if w["kind"] != "retail"]
         rows.sort(key=lambda r: (abs(r["net_usd"]), r["events"]), reverse=True)
         return rows[:limit]
+
+    def _worth(self, wallet: str, tokens: list[str]) -> float:
+        return round(sum(h["value_usd"]
+                         for h in self._modelled_holdings(wallet, tokens)), 2)
+
+    def wallet_list(self) -> list[dict[str, Any]]:
+        """All tracked (non-retail) wallets with the fields the Wallets table
+        sorts/filters/searches on (worth, buy amount, date added, etc.)."""
+        rows = []
+        for w in self.registry.values():
+            if w["kind"] == "retail":
+                continue
+            r = self._row(w)
+            r["worth_usd"] = self._worth(w["wallet"], sorted(w["tokens"]))
+            r["buys"] = w["buys"]
+            r["sells"] = w["sells"]
+            r["load_hits"] = w["load_hits"]
+            r["first_seen"] = w["first_seen"]
+            rows.append(r)
+        return rows
 
     def _is_pump_dumper(self, w: dict[str, Any]) -> bool:
         if w["kind"] == "retail":
@@ -600,3 +622,85 @@ class WalletIntel:
             })
         out.sort(key=lambda c: (c["hot"], c["recency"], len(c["loading_now"])), reverse=True)
         return out[:limit]
+
+    # ------------------------------------------------------------------ #
+    # bundling — coordinated multi-wallet buys of the same coin
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _max_distinct_window(buys: list[WalletEvent], window: float):
+        """Sliding window: the time-contiguous set of buys (within `window`
+        seconds) covering the most DISTINCT wallets."""
+        best_events: list[WalletEvent] = []
+        best_n = 0
+        start = 0
+        for end in range(len(buys)):
+            while buys[end].ts - buys[start].ts > window:
+                start += 1
+            window_events = buys[start:end + 1]
+            n = len({e.wallet for e in window_events})
+            if n > best_n:
+                best_n, best_events = n, window_events
+        return best_events, best_n
+
+    def _classify_bundle(self, buys: list[WalletEvent]):
+        # tightest-first. 3+ wallets within a minute is a true simultaneous
+        # bundle (strong); 2 within 20m is coordinated; 2 within a day is minor.
+        for window, min_n, severity, label in (
+                (60, 3, "critical", "synchronized (<1m)"),
+                (1200, 2, "warning", "coordinated (<20m)"),
+                (86400, 2, "info", "same-day")):
+            events, n = self._max_distinct_window(buys, window)
+            if n >= min_n:
+                return events, severity, label
+        return None, None, None
+
+    def compute_bundles(self, board: list[dict[str, Any]]) -> None:
+        now_ts = now()
+        for item in board:
+            t = item["token"]
+            addr = t["address"]
+            buf = self._events.get(addr)
+            if not buf:
+                continue
+            buys = sorted([e for e in buf if e.side == "buy" and e.kind in SMART_KINDS],
+                          key=lambda e: e.ts)
+            if len({e.wallet for e in buys}) < 2:
+                continue
+            events, severity, label = self._classify_bundle(buys)
+            if not events:
+                continue
+            # one row per distinct wallet in the cluster (largest buy)
+            by_wallet: dict[str, WalletEvent] = {}
+            for e in events:
+                if e.wallet not in by_wallet or e.usd > by_wallet[e.wallet].usd:
+                    by_wallet[e.wallet] = e
+            wallets = [{"wallet": e.wallet,
+                        "wallet_short": e.wallet[:4] + ".." + e.wallet[-4:],
+                        "kind": e.kind, "usd": round(e.usd, 2), "ts": e.ts}
+                       for e in sorted(by_wallet.values(), key=lambda x: x.usd, reverse=True)]
+            span = round(events[-1].ts - events[0].ts, 0)
+            cabal_id, members_present, _ = self._best_cabal(set(by_wallet))
+            entry = self._bundle_feed.get(addr) or {"first_detected_ts": now_ts}
+            entry.update({
+                "address": addr, "symbol": t["symbol"], "name": t.get("name", ""),
+                "url": t.get("url", ""), "pair_address": t.get("pair_address", ""),
+                "chain": t.get("chain", ""), "age_minutes": round(t.get("age_minutes", 0), 1),
+                "severity": severity, "label": label, "wallet_count": len(wallets),
+                "wallets": wallets, "total_usd": round(sum(w["usd"] for w in wallets), 2),
+                "span_seconds": span, "phase": item["detection"].get("phase"),
+                "pump_score": item["detection"].get("pump_score"),
+                "volume_h1": t.get("volume", {}).get("h1", 0),
+                "cabal_id": cabal_id if members_present >= 2 else None,
+                "last_seen_ts": now_ts,
+            })
+            self._bundle_feed[addr] = entry
+
+        for a in list(self._bundle_feed):
+            if now_ts - self._bundle_feed[a]["last_seen_ts"] > 600:
+                del self._bundle_feed[a]
+
+    def bundles(self, limit: int = 20) -> list[dict[str, Any]]:
+        rank = {"critical": 0, "warning": 1, "info": 2}
+        rows = list(self._bundle_feed.values())
+        rows.sort(key=lambda b: (rank.get(b["severity"], 3), -b["last_seen_ts"]))
+        return rows[:limit]

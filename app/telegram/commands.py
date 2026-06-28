@@ -14,7 +14,7 @@ from .format import h, hold, pct, price, rel_time, usd
 
 KIND_EMOJI = {"whale": "🐋", "insider": "🕵️", "smart_money": "🧠", "retail": "👤"}
 SIG_EMOJI = {"pump": "🚀", "dump": "🔻", "multi_sell": "🚨",
-             "whale_buy": "🐋", "entry": "🟢", "exit": "🔴"}
+             "whale_buy": "🐋", "entry": "🟢", "exit": "🔴", "bundle": "📦"}
 
 
 def _clamp_int(args: list[str], default: int, lo: int, hi: int) -> int:

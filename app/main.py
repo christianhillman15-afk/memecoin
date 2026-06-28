@@ -155,6 +155,14 @@ def create_app() -> FastAPI:
     async def api_wallets_categorized() -> JSONResponse:
         return JSONResponse(scanner.intel.categorized(14))
 
+    @app.get("/api/wallets/all")
+    async def api_wallets_all() -> JSONResponse:
+        return JSONResponse(scanner.intel.wallet_list())
+
+    @app.get("/api/bundles")
+    async def api_bundles() -> JSONResponse:
+        return JSONResponse(scanner.intel.bundles(24))
+
     @app.get("/api/loadouts")
     async def api_loadouts() -> JSONResponse:
         return JSONResponse(scanner.intel.loadouts(14))
