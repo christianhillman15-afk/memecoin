@@ -85,6 +85,7 @@ class WalletEvent:
     usd: float
     kind: str               # whale | insider | smart_money | retail
     source: str             # helius | simulated
+    win_rate: float = 0.0   # historical hit-rate of this wallet (0-1)
     ts: float = field(default_factory=now)
 
     def to_dict(self) -> dict[str, Any]:

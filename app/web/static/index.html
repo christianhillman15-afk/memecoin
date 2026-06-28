@@ -13,7 +13,7 @@
     <div class="brand">
       <div class="logo">◎</div>
       <div>
-        <h1>MemeRadar<span class="ver">v1.0</span></h1>
+        <h1>MemeRadar<span class="ver">v1.1</span></h1>
         <p class="tag">Solana memecoin pump &amp; dump intelligence · paper desk</p>
       </div>
     </div>
@@ -29,81 +29,159 @@
     </div>
   </header>
 
-  <section class="kpis" id="kpis">
-    <div class="kpi"><div class="kpi-label">Equity</div><div class="kpi-value" id="kEquity">—</div><div class="kpi-sub" id="kEquitySub">starting $10,000</div></div>
-    <div class="kpi"><div class="kpi-label">Total P&amp;L</div><div class="kpi-value" id="kPnl">—</div><div class="kpi-sub" id="kRoi">ROI —</div></div>
-    <div class="kpi"><div class="kpi-label">Realized</div><div class="kpi-value" id="kRealized">—</div><div class="kpi-sub" id="kUnreal">unrealized —</div></div>
-    <div class="kpi"><div class="kpi-label">Win rate</div><div class="kpi-value" id="kWin">—</div><div class="kpi-sub" id="kTrades">0 trades</div></div>
-    <div class="kpi"><div class="kpi-label">Open positions</div><div class="kpi-value" id="kOpen">—</div><div class="kpi-sub" id="kCash">cash —</div></div>
-    <div class="kpi"><div class="kpi-label">Cash deployed</div><div class="kpi-value" id="kDeployed">—</div><div class="kpi-sub">of bankroll</div></div>
-  </section>
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-tab="overview">Overview</button>
+    <button class="tab" data-tab="charts">Live Charts</button>
+    <button class="tab" data-tab="wallets">Wallets</button>
+    <button class="tab" data-tab="influencers">Influencers</button>
+  </nav>
 
-  <main class="grid">
-    <section class="panel span-2">
-      <div class="panel-head"><h2>Equity curve</h2><span class="hint" id="equityHint"></span></div>
-      <div class="chart-wrap"><canvas id="equityChart"></canvas></div>
+  <!-- ============================ OVERVIEW ============================ -->
+  <main class="tabpane active" id="pane-overview">
+    <section class="kpis" id="kpis">
+      <div class="kpi"><div class="kpi-label">Equity</div><div class="kpi-value" id="kEquity">—</div><div class="kpi-sub" id="kEquitySub">starting $10,000</div></div>
+      <div class="kpi"><div class="kpi-label">Total P&amp;L</div><div class="kpi-value" id="kPnl">—</div><div class="kpi-sub" id="kRoi">ROI —</div></div>
+      <div class="kpi"><div class="kpi-label">Realized</div><div class="kpi-value" id="kRealized">—</div><div class="kpi-sub" id="kUnreal">unrealized —</div></div>
+      <div class="kpi"><div class="kpi-label">Win rate</div><div class="kpi-value" id="kWin">—</div><div class="kpi-sub" id="kTrades">0 trades</div></div>
+      <div class="kpi"><div class="kpi-label">Open positions</div><div class="kpi-value" id="kOpen">—</div><div class="kpi-sub" id="kCash">cash —</div></div>
+      <div class="kpi"><div class="kpi-label">Cash deployed</div><div class="kpi-value" id="kDeployed">—</div><div class="kpi-sub">of bankroll</div></div>
     </section>
 
-    <section class="panel">
-      <div class="panel-head"><h2>Signals &amp; alerts</h2><span class="hint">live</span></div>
-      <div class="feed" id="signalsFeed"><div class="empty">Waiting for signals…</div></div>
-    </section>
+    <div class="grid">
+      <section class="panel span-2">
+        <div class="panel-head"><h2>Equity curve</h2><span class="hint" id="equityHint"></span></div>
+        <div class="chart-wrap"><canvas id="equityChart"></canvas></div>
+      </section>
 
-    <section class="panel span-2">
-      <div class="panel-head"><h2>Open positions</h2><span class="hint" id="posHint">paper</span></div>
-      <div class="table-wrap">
-        <table id="positionsTable">
-          <thead><tr>
-            <th>Token</th><th>Entry reason</th><th class="num">Size</th><th class="num">Entry</th>
-            <th class="num">Last</th><th class="num">P&amp;L</th><th>Exit guard</th><th class="num">Held</th>
-          </tr></thead>
-          <tbody><tr><td colspan="8" class="empty">No open positions.</td></tr></tbody>
-        </table>
-      </div>
-    </section>
+      <section class="panel">
+        <div class="panel-head"><h2>Signals &amp; alerts</h2><span class="hint">live</span></div>
+        <div class="feed" id="signalsFeed"><div class="empty">Waiting for signals…</div></div>
+      </section>
 
-    <section class="panel">
-      <div class="panel-head"><h2>Whale / insider watchlist</h2><span class="hint">tracked</span></div>
-      <div class="table-wrap scroll">
-        <table id="walletsTable">
-          <thead><tr><th>Wallet</th><th>Type</th><th class="num">Net flow</th><th class="num">Acts</th></tr></thead>
-          <tbody><tr><td colspan="4" class="empty">Discovering wallets…</td></tr></tbody>
-        </table>
-      </div>
-    </section>
+      <section class="panel span-2">
+        <div class="panel-head"><h2>Open positions</h2><span class="hint" id="posHint">paper</span></div>
+        <div class="table-wrap">
+          <table id="positionsTable">
+            <thead><tr>
+              <th>Token</th><th>Entry reason</th><th class="num">Size</th><th class="num">Entry</th>
+              <th class="num">Last</th><th class="num">P&amp;L</th><th>Exit guard</th><th class="num">Held</th>
+            </tr></thead>
+            <tbody><tr><td colspan="8" class="empty">No open positions.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
 
-    <section class="panel span-3">
-      <div class="panel-head">
-        <h2>Opportunity scanner</h2>
-        <span class="hint" id="boardHint">ranked by opportunity score</span>
-      </div>
-      <div class="table-wrap">
-        <table id="boardTable">
-          <thead><tr>
-            <th>Token</th><th>Phase</th><th class="num">Price</th>
-            <th class="num">5m</th><th class="num">1h</th><th class="num">6h</th>
-            <th class="num">Liq</th><th class="num">Vol 1h</th>
-            <th class="num">Pump</th><th class="num">Dump risk</th><th class="num">Safety</th>
-            <th class="num">Smart$</th><th class="num">Opp</th><th>Signal</th>
-          </tr></thead>
-          <tbody><tr><td colspan="14" class="empty">Scanning Solana memecoins…</td></tr></tbody>
-        </table>
-      </div>
-    </section>
+      <section class="panel">
+        <div class="panel-head"><h2>Whale / insider watchlist</h2><span class="hint">tracked</span></div>
+        <div class="table-wrap scroll">
+          <table id="walletsTable">
+            <thead><tr><th>Wallet</th><th>Type</th><th class="num">Net flow</th><th class="num">Acts</th></tr></thead>
+            <tbody><tr><td colspan="4" class="empty">Discovering wallets…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
 
-    <section class="panel span-3">
-      <div class="panel-head"><h2>Trade history</h2><span class="hint" id="tradeHint">closed paper trades</span></div>
-      <div class="table-wrap scroll">
-        <table id="tradesTable">
-          <thead><tr>
-            <th>Token</th><th class="num">Entry</th><th class="num">Exit</th>
-            <th class="num">Size</th><th class="num">P&amp;L</th><th class="num">P&amp;L %</th>
-            <th>Exit reason</th><th class="num">Closed</th>
-          </tr></thead>
-          <tbody><tr><td colspan="8" class="empty">No closed trades yet.</td></tr></tbody>
-        </table>
-      </div>
+      <section class="panel span-3">
+        <div class="panel-head">
+          <h2>Opportunity scanner</h2>
+          <span class="hint" id="boardHint">ranked by opportunity score · click a row to chart it</span>
+        </div>
+        <div class="table-wrap">
+          <table id="boardTable">
+            <thead><tr>
+              <th>Token</th><th>Phase</th><th class="num">Price</th>
+              <th class="num">5m</th><th class="num">1h</th><th class="num">6h</th>
+              <th class="num">Liq</th><th class="num">Vol 1h</th>
+              <th class="num">Pump</th><th class="num">Dump risk</th><th class="num">Safety</th>
+              <th class="num">Smart$</th><th class="num">Opp</th><th>Signal</th>
+            </tr></thead>
+            <tbody><tr><td colspan="14" class="empty">Scanning Solana memecoins…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel span-3">
+        <div class="panel-head"><h2>Trade history</h2><span class="hint" id="tradeHint">closed paper trades</span></div>
+        <div class="table-wrap scroll">
+          <table id="tradesTable">
+            <thead><tr>
+              <th>Token</th><th class="num">Entry</th><th class="num">Exit</th>
+              <th class="num">Size</th><th class="num">P&amp;L</th><th class="num">P&amp;L %</th>
+              <th>Exit reason</th><th class="num">Closed</th>
+            </tr></thead>
+            <tbody><tr><td colspan="8" class="empty">No closed trades yet.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- ============================ CHARTS ============================ -->
+  <main class="tabpane" id="pane-charts">
+    <div class="charts-layout">
+      <aside class="chart-list panel">
+        <div class="panel-head"><h2>Coins</h2><span class="hint">live universe</span></div>
+        <div class="chart-search"><input id="coinSearch" type="text" placeholder="Search symbol / name…" /></div>
+        <div class="coin-list" id="coinList"><div class="empty">Loading coins…</div></div>
+        <div class="manual">
+          <div class="manual-label">Or chart any pair / token address</div>
+          <input id="manualAddr" type="text" placeholder="pair or token address" />
+          <button id="manualGo" class="btn">Load</button>
+        </div>
+      </aside>
+      <section class="chart-main panel">
+        <div class="panel-head">
+          <h2 id="chartTitle">Select a coin</h2>
+          <span class="hint">candles, timeframes &amp; tools are built into the DexScreener chart ↘</span>
+        </div>
+        <div class="chart-frame-wrap" id="chartFrameWrap">
+          <div class="chart-placeholder" id="chartPlaceholder">
+            <div class="ph-logo">◎</div>
+            <p>Pick a coin on the left to load its live DexScreener chart.</p>
+            <p class="ph-sub">Full TradingView-style charting — candles, intervals, indicators, drawing tools.</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- ============================ WALLETS ============================ -->
+  <main class="tabpane" id="pane-wallets">
+    <div class="wallets-head">
+      <h2>Wallet intelligence</h2>
+      <div class="wallet-counts" id="walletCounts"></div>
+    </div>
+    <div class="wallet-cats">
+      <section class="panel wcat" data-cat="whales">
+        <div class="panel-head"><h2>🐋 Whales <span class="cat-n" id="n-whales"></span></h2><span class="hint">richest / biggest size</span></div>
+        <div class="table-wrap scroll"><table class="wallet-table"><thead><tr><th>Wallet</th><th class="num">Win%</th><th class="num">Net</th><th class="num">Volume</th><th class="num">Coins</th></tr></thead><tbody id="tb-whales"></tbody></table></div>
+      </section>
+      <section class="panel wcat" data-cat="insiders">
+        <div class="panel-head"><h2>🕵️ Insiders <span class="cat-n" id="n-insiders"></span></h2><span class="hint">early / first buyers</span></div>
+        <div class="table-wrap scroll"><table class="wallet-table"><thead><tr><th>Wallet</th><th class="num">Win%</th><th class="num">Net</th><th class="num">Coins</th><th class="num">Acts</th></tr></thead><tbody id="tb-insiders"></tbody></table></div>
+      </section>
+      <section class="panel wcat" data-cat="smart_money">
+        <div class="panel-head"><h2>🧠 Smart money <span class="cat-n" id="n-smart_money"></span></h2><span class="hint">high win-rate &amp; profitable</span></div>
+        <div class="table-wrap scroll"><table class="wallet-table"><thead><tr><th>Wallet</th><th class="num">Win%</th><th class="num">Net</th><th class="num">Coins</th><th class="num">Acts</th></tr></thead><tbody id="tb-smart_money"></tbody></table></div>
+      </section>
+      <section class="panel wcat" data-cat="pump_dumpers">
+        <div class="panel-head"><h2>💣 Pump &amp; dump <span class="cat-n" id="n-pump_dumpers"></span></h2><span class="hint">serial coordinated dumpers</span></div>
+        <div class="table-wrap scroll"><table class="wallet-table"><thead><tr><th>Wallet</th><th class="num">Dumps</th><th class="num">Sold</th><th class="num">Net</th><th class="num">Coins</th></tr></thead><tbody id="tb-pump_dumpers"></tbody></table></div>
+      </section>
+    </div>
+    <section class="panel span-full">
+      <div class="panel-head"><h2>👥 Cabal groups</h2><span class="hint">wallets that repeatedly dump the same coins together</span></div>
+      <div class="cabals" id="cabals"><div class="empty">Detecting coordinated groups… (needs a few scans)</div></div>
     </section>
+  </main>
+
+  <!-- ========================== INFLUENCERS ========================== -->
+  <main class="tabpane" id="pane-influencers">
+    <div class="wallets-head">
+      <h2>Influencer / KOL wallets</h2>
+      <span class="hint" id="inflNote">curated watchlist — edit <code>influencers.yaml</code> to add verified wallets</span>
+    </div>
+    <div class="influencer-grid" id="influencerGrid"><div class="empty">Loading influencer wallets…</div></div>
   </main>
 
   <footer class="foot">

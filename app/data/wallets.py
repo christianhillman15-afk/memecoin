@@ -60,19 +60,69 @@ class _Wallet:
     kind: str          # whale | insider | smart_money | retail
     win_rate: float    # historical hit-rate (used to label smart money)
     entry_rank: int    # how early it entered (lower = more insider-like)
+    dumper: bool = False  # behaves as a coordinated pump-and-dump distributor
+    cabal: int = -1    # membership in a recurring coordinated group (-1 = none)
 
 
 class SimulatedWalletProvider:
-    """Synthesises wallet activity anchored to real market data."""
+    """Synthesises wallet activity anchored to real market data.
+
+    A small *syndicate* of wallets recurs across many tokens (like real cabals
+    and serial snipers do), so cross-token intelligence — repeat pump-and-dump
+    actors and coordinated groups — actually emerges. Each token also has its
+    own one-off whales and retail. Everything is clearly sourced "simulated".
+    """
 
     name = "simulated"
 
     def __init__(self, cfg: Config):
         self.cfg = cfg
         self._rosters: dict[str, list[_Wallet]] = {}
+        self._cabals = self._build_cabals()           # list[list[_Wallet]]
+        self._independents = self._build_independents()
 
     async def close(self) -> None:  # symmetry with the real provider
         return None
+
+    def _build_cabals(self) -> list[list[_Wallet]]:
+        """A few fixed coordinated groups (cabals) of recurring dumper wallets.
+
+        Cabal members repeatedly trade the *same* tokens together, which is what
+        lets the intel engine rediscover them as distinct clusters downstream.
+        """
+        rng = random.Random(8675309)
+        cabals: list[list[_Wallet]] = []
+        specs = [("whale", "whale", "insider", "whale"),
+                 ("insider", "whale", "smart_money"),
+                 ("whale", "insider", "insider")]
+        for ci, kinds in enumerate(specs):
+            group = []
+            for wi, kind in enumerate(kinds):
+                group.append(_Wallet(_fake_wallet(f"cabal-{ci}-{wi}"), kind,
+                                     rng.uniform(0.5, 0.82), rng.randint(1, 10),
+                                     dumper=True, cabal=ci))
+            cabals.append(group)
+        return cabals
+
+    def _build_independents(self) -> list[_Wallet]:
+        """Recurring but unaffiliated whales / smart money / insiders.
+
+        These are NOT coordinated dumpers — they accumulate and trade on their
+        own — so they don't get folded into the cabal clusters.
+        """
+        rng = random.Random(192837)
+        pool: list[_Wallet] = []
+        for i in range(3):
+            pool.append(_Wallet(_fake_wallet(f"indep-whale-{i}"), "whale",
+                                rng.uniform(0.42, 0.68), rng.randint(1, 14)))
+        for i in range(4):
+            pool.append(_Wallet(_fake_wallet(f"indep-smart-{i}"), "smart_money",
+                                rng.uniform(self.cfg.smart_money_min_winrate, 0.93),
+                                rng.randint(1, 40)))
+        for i in range(2):
+            pool.append(_Wallet(_fake_wallet(f"indep-insider-{i}"), "insider",
+                                rng.uniform(0.55, 0.85), rng.randint(1, 8)))
+        return pool
 
     def _roster(self, snap: TokenSnapshot) -> list[_Wallet]:
         """A stable cast of wallets for a token (recurs across scans)."""
@@ -80,23 +130,22 @@ class SimulatedWalletProvider:
             return self._rosters[snap.address]
         rng = random.Random(int(hashlib.sha256(snap.address.encode()).hexdigest(), 16))
         roster: list[_Wallet] = []
-        n_whales = rng.randint(2, 5)
-        n_insiders = rng.randint(1, 4)
-        n_smart = rng.randint(2, 5)
-        n_retail = rng.randint(6, 12)
-        rank = 1
-        for i in range(n_whales):
+        # ~60% of tokens are "controlled" by a single cabal whose members all
+        # pile in together (and later dump together) — this is what forms a
+        # detectable coordinated group across many tokens.
+        controlling = rng.choice([0, 1, 2, None, None])
+        if controlling is not None:
+            roster.extend(self._cabals[controlling])
+        # a sprinkle of unaffiliated recurring actors (kept light so they don't
+        # blur the coordinated groups)
+        roster.extend(rng.sample(self._independents, rng.randint(1, 2)))
+        # a few token-unique whales
+        for i in range(rng.randint(0, 2)):
             roster.append(_Wallet(_fake_wallet(f"{snap.address}-whale-{i}"),
-                                  "whale", rng.uniform(0.45, 0.75), rank)); rank += 1
-        for i in range(n_insiders):
-            roster.append(_Wallet(_fake_wallet(f"{snap.address}-insider-{i}"),
-                                  "insider", rng.uniform(0.55, 0.85),
-                                  rng.randint(1, self.cfg.insider_early_buy_rank))); rank += 1
-        for i in range(n_smart):
-            roster.append(_Wallet(_fake_wallet(f"{snap.address}-smart-{i}"),
-                                  "smart_money", rng.uniform(self.cfg.smart_money_min_winrate, 0.9),
-                                  rng.randint(1, 60))); rank += 1
-        for i in range(n_retail):
+                                  "whale", rng.uniform(0.4, 0.7), rng.randint(1, 15),
+                                  dumper=rng.random() < 0.4))
+        # retail noise
+        for i in range(rng.randint(6, 12)):
             roster.append(_Wallet(_fake_wallet(f"{snap.address}-retail-{i}"),
                                   "retail", rng.uniform(0.2, 0.5), rng.randint(50, 400)))
         self._rosters[snap.address] = roster
@@ -122,7 +171,7 @@ class SimulatedWalletProvider:
 
         events: list[WalletEvent] = []
         # how many notable wallet events to emit this scan (scaled to activity)
-        n_events = min(8, max(1, total // 12))
+        n_events = min(8, max(2, total // 10))
         actors = [w for w in roster if w.kind != "retail"]
         rng.shuffle(actors)
         for w in actors[:n_events]:
@@ -130,7 +179,9 @@ class SimulatedWalletProvider:
             sell_p = 0.5 - 0.45 * pressure
             if distribution:
                 sell_p = min(0.92, sell_p + 0.35)
-            if w.kind == "smart_money" and not distribution and pressure > 0:
+            if w.dumper and distribution:
+                sell_p = min(0.95, sell_p + 0.2)   # dumpers distribute hard
+            if w.kind == "smart_money" and not w.dumper and not distribution and pressure > 0:
                 sell_p *= 0.5  # smart money accumulates into strength
             side = "sell" if rng.random() < sell_p else "buy"
             size_mult = {"whale": rng.uniform(6, 22),
@@ -139,7 +190,8 @@ class SimulatedWalletProvider:
             usd = round(avg_trade * size_mult, 2)
             events.append(WalletEvent(wallet=w.address, token=snap.address,
                                       symbol=snap.symbol, side=side, usd=usd,
-                                      kind=w.kind, source="simulated"))
+                                      kind=w.kind, source="simulated",
+                                      win_rate=round(w.win_rate, 3)))
 
         whale_conc = self._concentration_heuristic(snap)
         return WalletFetch(events=events, whale_concentration=whale_conc,

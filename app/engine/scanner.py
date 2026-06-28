@@ -24,6 +24,7 @@ from ..data.dexscreener import DexScreenerClient
 from ..data.wallets import build_wallet_provider
 from ..models import DetectionResult, Signal, TokenIntel, TokenSnapshot
 from .detector import detect
+from .influencers import InfluencerTracker
 from .paper_trader import PaperTrader
 from .strategy import evaluate_entry, evaluate_exit, update_trailing
 from .wallet_intel import WalletIntel
@@ -38,6 +39,7 @@ class Scanner:
         self.dex = DexScreenerClient(chain=cfg.chain)
         self.wallets = build_wallet_provider(cfg)
         self.intel = WalletIntel(cfg)
+        self.influencers = InfluencerTracker(cfg)
         self.trader = PaperTrader(cfg, db)
 
         self.running = False
@@ -130,6 +132,9 @@ class Scanner:
         # rank the board for the dashboard
         board.sort(key=lambda b: b["detection"]["opportunity"], reverse=True)
         self.board = board
+
+        # update influencer wallet activity against the live universe
+        self.influencers.update(snapshots, self.scan_count)
 
         self.trader.record_equity_point()
         self.scan_count += 1

@@ -127,6 +127,9 @@ auto_trade: true              # let the strategy open/close paper positions
 
 ## Dashboard
 
+The dashboard is organised into four tabs:
+
+### 📊 Overview
 | Panel | Shows |
 |---|---|
 | **KPI strip** | Equity, total P&L, realized vs unrealized, win rate, open positions, cash deployed. |
@@ -134,8 +137,27 @@ auto_trade: true              # let the strategy open/close paper positions
 | **Signals & alerts** | Pumps, dump warnings, whale buys, coordinated sells, and every entry/exit with its reason. |
 | **Open positions** | Live P&L, peak price, and the active exit guard (e.g. “trailing · 6% off peak”). |
 | **Whale / insider watchlist** | Most active tracked smart wallets and their net flow. |
-| **Opportunity scanner** | Every scanned token ranked by opportunity, with pump / dump-risk / safety bars, phase, and signal flags. |
+| **Opportunity scanner** | Every scanned token ranked by opportunity, with pump / dump-risk / safety bars. Click any row to chart it. |
 | **Trade history** | Closed paper trades with entry/exit, P&L, and exit reason. |
+
+### 📈 Live Charts
+The **full DexScreener chart** (TradingView-powered — candles, timeframes,
+indicators, drawing tools) embedded per coin. Pick any coin from the live
+scanned universe on the left, or paste any pair/token address. These are the
+only price charts the app uses — straight from DexScreener.
+
+### 👛 Wallets
+Tracked wallets organised into categories: **🐋 Whales** (biggest size),
+**🕵️ Insiders** (early buyers), **🧠 Smart money** (high win-rate & profitable),
+**💣 Pump & dump** (serial coordinated dumpers), and **👥 Cabal groups** —
+clusters of wallets that repeatedly dump the *same* coins together (found via
+co-dump clustering).
+
+### 📣 Influencers
+A curated watchlist of X/Twitter influencers / KOLs and their wallets, with what
+each is currently trading. Because no API reliably maps a handle → wallet, this
+list is **manual**: edit [`influencers.yaml`](influencers.yaml) to add verified
+addresses. Ships with clearly-labelled demo entries.
 
 Controls: **Pause/Resume** auto-trading, **Scan now**, and **Reset** the paper
 portfolio back to $10,000.
