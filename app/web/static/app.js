@@ -413,16 +413,25 @@
   let cacheScan = -1;
   const modalStack = [];
 
+  function getModalRoot() {
+    let r = document.getElementById("modalRoot");
+    if (!r) {  // self-heal if index.html was an older/cached version
+      r = document.createElement("div");
+      r.id = "modalRoot"; r.className = "modal-root";
+      document.body.appendChild(r);
+    }
+    return r;
+  }
   function destroyProfileChart() { if (profileChart) { profileChart.destroy(); profileChart = null; } }
   function openModal(html, kind) {
-    const root = document.getElementById("modalRoot");
+    const root = getModalRoot();
     root.innerHTML = `<div class="modal-backdrop" data-close></div><div class="modal-panel ${kind}">${html}</div>`;
     root.classList.add("open");
     document.body.classList.add("modal-open");
     root.setAttribute("aria-hidden", "false");
   }
   function closeModal() {
-    const root = document.getElementById("modalRoot");
+    const root = getModalRoot();
     destroyProfileChart();
     root.classList.remove("open");
     document.body.classList.remove("modal-open");
@@ -641,22 +650,13 @@
     }
   });
 
-  // ---------- boot ----------
-  async function boot() {
-    try {
-      const cfg = await fetch("/api/config").then((r) => r.json());
-      if (cfg && cfg.auth_enabled) {
-        const l = document.getElementById("logoutLink");
-        if (l) l.style.display = "";
-      }
-    } catch (e) {}
-    try { applySnapshot(await fetch("/api/snapshot").then((r) => r.json())); } catch (e) {}
-    await refreshAux();
-    connect();
-    setInterval(refreshAux, 15000);
-
-    // ---- wallet/cabal profile delegation (works across re-renders) ----
-    document.addEventListener("click", (e) => {
+  // ---------- interactions (attached FIRST, before any network) ----------
+  function setupInteractions() {
+    // delegated so it works on every (re-)rendered wallet/cabal element, on any
+    // tab, and on touch devices. Also handles modal close + copy.
+    const onActivate = (e) => {
+      const closeEl = e.target.closest("[data-close]");
+      if (closeEl && getModalRoot().contains(closeEl)) { closeModal(); return; }
       const copyEl = e.target.closest("[data-copy]");
       if (copyEl) { if (navigator.clipboard) navigator.clipboard.writeText(copyEl.dataset.copy); return; }
       const w = e.target.closest("[data-wallet]");
@@ -668,11 +668,25 @@
       }
       const c = e.target.closest("[data-cabal]");
       if (c && c.dataset.cabal) { openCabalProfile(c.dataset.cabal); return; }
-    });
-    document.getElementById("modalRoot").addEventListener("click", (e) => {
-      if (e.target.closest("[data-close]")) closeModal();
-    });
+    };
+    document.addEventListener("click", onActivate);
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+  }
+
+  // ---------- boot ----------
+  async function boot() {
+    setupInteractions();   // network-independent — clicks work even if a fetch hangs
+    try {
+      const cfg = await fetch("/api/config").then((r) => r.json());
+      if (cfg && cfg.auth_enabled) {
+        const l = document.getElementById("logoutLink");
+        if (l) l.style.display = "";
+      }
+    } catch (e) {}
+    try { applySnapshot(await fetch("/api/snapshot").then((r) => r.json())); } catch (e) {}
+    await refreshAux();
+    connect();
+    setInterval(refreshAux, 15000);
   }
   boot();
 })();
