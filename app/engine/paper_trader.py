@@ -95,6 +95,64 @@ class PaperTrader:
         log.info("CLOSE %s pnl $%.2f (%.1f%%) — %s", pos.symbol, pnl, pnl_pct, reason)
         return trade
 
+    # --- manual trading --------------------------------------------------- #
+    def manual_buy(self, snap: TokenSnapshot, usd: float,
+                   reason: str = "manual buy") -> Optional[Position]:
+        """Buy a USD amount of a coin; averages into an existing position.
+        Bypasses the auto-trade position cap (it's the user's explicit choice)."""
+        usd = min(usd, self.cash * 0.999)
+        if usd < 1 or snap.price_usd <= 0:
+            return None
+        fill = snap.price_usd * (1 + self.cfg.slippage_pct)
+        qty = (usd * (1 - self.cfg.fee_pct)) / fill
+        pos = self.positions.get(snap.address)
+        if pos:                       # average in
+            pos.qty += qty
+            pos.entry_value += usd
+            pos.entry_price = pos.entry_value / pos.qty if pos.qty else fill
+            pos.last_price = snap.price_usd
+            pos.peak_price = max(pos.peak_price, snap.price_usd)
+        else:
+            pos = Position(
+                address=snap.address, symbol=snap.symbol, name=snap.name, url=snap.url,
+                qty=qty, entry_price=fill, entry_value=usd, opened_at=now(),
+                peak_price=fill, last_price=fill, entry_reason=reason)
+            self.positions[snap.address] = pos
+        self.cash -= usd
+        self._persist()
+        log.info("MANUAL BUY %s $%.0f @ %.8f", snap.symbol, usd, fill)
+        return pos
+
+    def manual_sell(self, address: str, price: float, fraction: float = 1.0,
+                    reason: str = "manual sell") -> Optional[Trade]:
+        """Sell a fraction (0-1) of a position at the given price."""
+        pos = self.positions.get(address)
+        if not pos:
+            return None
+        fraction = max(0.01, min(1.0, fraction))
+        fill = max(0.0, price) * (1 - self.cfg.slippage_pct)
+        qty_sold = pos.qty * fraction
+        cost = pos.entry_value * fraction
+        proceeds = qty_sold * fill * (1 - self.cfg.fee_pct)
+        pnl = proceeds - cost
+        pnl_pct = (pnl / cost * 100.0) if cost else 0.0
+        self.cash += proceeds
+        trade = Trade(
+            address=pos.address, symbol=pos.symbol, name=pos.name, qty=qty_sold,
+            entry_price=pos.entry_price, exit_price=fill, entry_value=cost,
+            exit_value=proceeds, pnl=round(pnl, 2), pnl_pct=round(pnl_pct, 2),
+            opened_at=pos.opened_at, closed_at=now(),
+            entry_reason=pos.entry_reason, exit_reason=reason)
+        self.db.insert_trade(trade)
+        if fraction >= 0.999:
+            del self.positions[address]
+        else:
+            pos.qty -= qty_sold
+            pos.entry_value -= cost
+        self._persist()
+        log.info("MANUAL SELL %s %.0f%% pnl $%.2f", pos.symbol, fraction * 100, pnl)
+        return trade
+
     # --- state ------------------------------------------------------------ #
     def portfolio_state(self) -> PortfolioState:
         stats = self.db.trade_stats()

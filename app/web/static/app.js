@@ -81,6 +81,8 @@
     document.getElementById("kOpen").textContent = p.open_positions;
     document.getElementById("kCash").textContent = "cash " + fmtUsd(p.cash, 0);
     document.getElementById("kDeployed").textContent = fmtUsd(Math.max(0, p.equity - p.cash), 0);
+    const tc = document.getElementById("tradeCash");
+    if (tc) tc.textContent = "cash " + fmtUsd(p.cash, 0);
   }
 
   // ---------- positions ----------
@@ -101,8 +103,7 @@
       }
       return `<tr>
         <td><div class="tok"><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.symbol)}</a>
-          <small>peak ${fmtPrice(p.peak_price)}</small></div></td>
-        <td class="mut">${esc(p.entry_reason)}</td>
+          <small>${esc((p.entry_reason||"").slice(0,22))} · peak ${fmtPrice(p.peak_price)}</small></div></td>
         <td class="num">${fmtUsd(p.entry_value, 0)}</td>
         <td class="num">${fmtPrice(p.entry_price)}</td>
         <td class="num">${fmtPrice(p.last_price)}</td>
@@ -110,6 +111,11 @@
           <small>${fmtPct(p.unrealized_pnl_pct)}</small></td>
         <td>${guard}</td>
         <td class="num mut">${held(p.hold_seconds)}</td>
+        <td><div class="sell-btns">
+          <button data-sell="${esc(p.address)}" data-frac="0.25">25%</button>
+          <button data-sell="${esc(p.address)}" data-frac="0.5">50%</button>
+          <button data-sell="${esc(p.address)}" data-frac="1">All</button>
+        </div></td>
       </tr>`;
     }).join("");
   }
@@ -167,6 +173,7 @@
   // ---------- overview watchlist ----------
   function renderWallets(wallets) {
     const tb = document.querySelector("#walletsTable tbody");
+    if (!tb) return;  // overview watchlist removed in the reorg
     if (!wallets || !wallets.length) {
       tb.innerHTML = `<tr><td colspan="4" class="empty">Discovering wallets…</td></tr>`; return;
     }
@@ -705,6 +712,42 @@
     drawProfileChart("careerChart", c.career);
   }
 
+  // ================= MANUAL TRADE =================
+  function setTradeMsg(text, ok) {
+    const m = document.getElementById("tradeMsg");
+    if (m) { m.textContent = text; m.className = "trade-msg " + (ok ? "ok" : "err"); }
+  }
+  function renderBuyOptions(b) {
+    const sel = document.getElementById("buyCoin");
+    if (!sel || !b) return;
+    const cur = sel.value;
+    sel.innerHTML = `<option value="">— select a scanned coin —</option>` +
+      b.map((x) => `<option value="${esc(x.token.address)}">${esc(x.token.symbol)} — ${fmtPrice(x.token.price_usd)} · opp ${Math.round(x.detection.opportunity)}</option>`).join("");
+    sel.value = cur || "";
+  }
+  async function refreshNow() {
+    try { applySnapshot(await fetch("/api/snapshot").then((r) => r.json())); } catch (e) {}
+    refreshAux();
+  }
+  async function doBuy() {
+    const addr = document.getElementById("buyCoin").value;
+    const usd = parseFloat(document.getElementById("buyUsd").value);
+    if (!addr) return setTradeMsg("Pick a coin first.", false);
+    if (!usd || usd <= 0) return setTradeMsg("Enter a USD amount.", false);
+    const btn = document.getElementById("buyBtn"); btn.disabled = true;
+    const r = await fetch("/api/trade/buy", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ address: addr, usd }) }).then((x) => x.json()).catch(() => null);
+    btn.disabled = false;
+    if (r && r.ok) { setTradeMsg(`✅ Bought ${r.symbol} for $${usd.toLocaleString()}.`, true); refreshNow(); }
+    else setTradeMsg("⚠️ " + ((r && r.error) || "Buy failed."), false);
+  }
+  async function doSell(addr, frac) {
+    const r = await fetch("/api/trade/sell", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ address: addr, fraction: frac }) }).then((x) => x.json()).catch(() => null);
+    if (r && r.ok) { setTradeMsg(`✅ Sold ${Math.round(frac * 100)}% (${r.pnl >= 0 ? "+" : ""}$${r.pnl}).`, true); refreshNow(); }
+    else setTradeMsg("⚠️ " + ((r && r.error) || "Sell failed."), false);
+  }
+
   // ---------- snapshot dispatch ----------
   function applySnapshot(s) {
     lastSnapshot = s;
@@ -712,6 +755,7 @@
     if (s.positions) renderPositions(s.positions);
     if (s.board) {
       board = s.board; renderBoard(board);
+      renderBuyOptions(board);
       if (activeTab === "charts") {
         renderCoinList(document.getElementById("coinSearch").value);
         if (selectedCoinAddr && chartView === "profile") renderChartBody();  // live profile refresh
@@ -751,24 +795,33 @@
   }
 
   // ---------- tabs ----------
+  const VIEW_TITLES = { overview: "Dashboard", trade: "Trade", charts: "Live Charts",
+                        wallets: "Wallet intelligence", influencers: "Influencer wallets" };
   function switchTab(name) {
     activeTab = name;
-    document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
+    document.querySelectorAll(".nav-item").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
     document.querySelectorAll(".tabpane").forEach((p) => p.classList.toggle("active", p.id === "pane-" + name));
+    const vt = document.getElementById("viewTitle");
+    if (vt) vt.textContent = VIEW_TITLES[name] || name;
+    if (name === "trade") renderBuyOptions(board);
     if (name === "charts") renderCoinList(document.getElementById("coinSearch").value);
     if (name === "wallets") refreshWalletsTab();
     if (name === "influencers") refreshInfluencers();
   }
-  document.querySelectorAll(".tab").forEach((t) =>
+  document.querySelectorAll(".nav-item").forEach((t) =>
     t.addEventListener("click", () => switchTab(t.dataset.tab)));
 
-  // board row → open coin in Charts tab
+  // board row (Trade tab) → load coin into the buy box
   document.querySelector("#boardTable tbody").addEventListener("click", (e) => {
     const tr = e.target.closest("tr[data-addr]");
     if (!tr || !tr.dataset.addr) return;
-    switchTab("charts");
-    selectCoin(tr.dataset.addr, "profile");
+    const sel = document.getElementById("buyCoin");
+    if (sel) { sel.value = tr.dataset.addr; document.getElementById("buyUsd").focus(); }
+    setTradeMsg("Loaded into the buy box — set an amount and Buy.", true);
   });
+  // manual trade controls
+  document.getElementById("buyBtn").addEventListener("click", doBuy);
+  document.getElementById("buyUsd").addEventListener("keydown", (e) => { if (e.key === "Enter") doBuy(); });
   // charts controls
   document.getElementById("coinSearch").addEventListener("input", (e) => renderCoinList(e.target.value));
   document.getElementById("manualGo").addEventListener("click", () => {
@@ -849,6 +902,10 @@
     const onActivate = (e) => {
       const closeEl = e.target.closest("[data-close]");
       if (closeEl && getModalRoot().contains(closeEl)) { closeModal(); return; }
+      const sellEl = e.target.closest("[data-sell]");
+      if (sellEl) { e.stopPropagation(); doSell(sellEl.dataset.sell, parseFloat(sellEl.dataset.frac)); return; }
+      const amtEl = e.target.closest(".quick-amts button");
+      if (amtEl) { document.getElementById("buyUsd").value = amtEl.dataset.amt; return; }
       const copyEl = e.target.closest("[data-copy]");
       if (copyEl) { if (navigator.clipboard) navigator.clipboard.writeText(copyEl.dataset.copy); return; }
       const w = e.target.closest("[data-wallet]");

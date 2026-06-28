@@ -127,9 +127,18 @@ auto_trade: true              # let the strategy open/close paper positions
 
 ## Dashboard
 
-The dashboard is organised into four tabs:
+The dashboard has a **left sidebar** to navigate between views, with global
+controls (pause / scan / reset) tucked into the sidebar foot.
 
-### 📊 Overview
+### 💱 Trade
+**Manual paper trading.** Buy any scanned coin (pick from the dropdown or click a
+row in the opportunity scanner, set a USD amount or use the $50/$100/$250/$500
+quick buttons) and **sell** any position 25% / 50% / 100%. Fills use the live
+price with slippage + fees. This tab also holds open positions, the opportunity
+scanner, and trade history. Auto-trading and manual trading coexist — pause auto
+for full manual control.
+
+### 📊 Dashboard (Overview)
 | Panel | Shows |
 |---|---|
 | **KPI strip** | Equity, total P&L, realized vs unrealized, win rate, open positions, cash deployed. |

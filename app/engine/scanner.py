@@ -46,6 +46,7 @@ class Scanner:
 
         self.running = False
         self.paused = not cfg.auto_trade
+        self.snap_by_addr: dict[str, TokenSnapshot] = {}  # latest, for manual trades
         self.last_scan_ts: float = 0.0
         self.scan_count: int = 0
         self.last_error: Optional[str] = None
@@ -131,6 +132,7 @@ class Scanner:
 
         snapshots = await self.dex.enrich(addresses)
         snap_by_addr = {s.address: s for s in snapshots}
+        self.snap_by_addr = snap_by_addr
 
         # on-chain rug check (mint/freeze authority) for the whole universe
         try:
@@ -285,6 +287,36 @@ class Scanner:
             multi_sell_wallets=d["multi_sell_wallets"],
             multi_sell_usd=d["multi_sell_usd"], source=d["source"],
         )
+
+    # --- manual trading (from the dashboard) ----------------------------- #
+    def manual_buy(self, address: str, usd: float) -> dict[str, Any]:
+        snap = self.snap_by_addr.get(address)
+        if not snap:
+            return {"ok": False, "error": "coin not in the current scan universe"}
+        if usd <= 0:
+            return {"ok": False, "error": "amount must be positive"}
+        pos = self.trader.manual_buy(snap, usd)
+        if not pos:
+            return {"ok": False, "error": "buy failed (insufficient cash?)"}
+        self._emit(Signal("entry", "info", address, snap.symbol,
+                          f"MANUAL BUY {snap.symbol} ${usd:,.0f}",
+                          meta={"manual": True, "url": snap.url}))
+        return {"ok": True, "symbol": snap.symbol, "cash": round(self.trader.cash, 2)}
+
+    def manual_sell(self, address: str, fraction: float = 1.0) -> dict[str, Any]:
+        pos = self.trader.positions.get(address)
+        if not pos:
+            return {"ok": False, "error": "no open position in that coin"}
+        snap = self.snap_by_addr.get(address)
+        price = snap.price_usd if snap else pos.last_price
+        trade = self.trader.manual_sell(address, price, fraction)
+        if not trade:
+            return {"ok": False, "error": "sell failed"}
+        sev = "success" if trade.pnl >= 0 else "warning"
+        self._emit(Signal("exit", sev, address, trade.symbol,
+                          f"MANUAL SELL {trade.symbol} {trade.pnl_pct:+.1f}% "
+                          f"(${trade.pnl:+.0f})", meta={"manual": True}))
+        return {"ok": True, "pnl": trade.pnl, "cash": round(self.trader.cash, 2)}
 
     # --- snapshot for the API -------------------------------------------- #
     def snapshot(self) -> dict[str, Any]:

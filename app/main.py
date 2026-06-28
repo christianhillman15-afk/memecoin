@@ -207,6 +207,18 @@ def create_app() -> FastAPI:
         scanner.trader.record_equity_point()
         return {"ok": True, "cash": scanner.trader.cash}
 
+    @app.post("/api/trade/buy")
+    async def trade_buy(request: Request) -> dict[str, Any]:
+        body = await request.json()
+        return scanner.manual_buy(str(body.get("address", "")),
+                                  float(body.get("usd", 0) or 0))
+
+    @app.post("/api/trade/sell")
+    async def trade_sell(request: Request) -> dict[str, Any]:
+        body = await request.json()
+        return scanner.manual_sell(str(body.get("address", "")),
+                                   float(body.get("fraction", 1.0) or 1.0))
+
     @app.post("/api/control/scan")
     async def ctrl_scan() -> dict[str, Any]:
         try:
