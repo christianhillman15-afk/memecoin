@@ -477,6 +477,13 @@
 
   // ---------- boot ----------
   async function boot() {
+    try {
+      const cfg = await fetch("/api/config").then((r) => r.json());
+      if (cfg && cfg.auth_enabled) {
+        const l = document.getElementById("logoutLink");
+        if (l) l.style.display = "";
+      }
+    } catch (e) {}
     try { applySnapshot(await fetch("/api/snapshot").then((r) => r.json())); } catch (e) {}
     await refreshAux();
     connect();
