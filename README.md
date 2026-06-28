@@ -42,6 +42,21 @@ python run.py
 That's it. With **no API keys** it already works end-to-end using the free,
 key-less [DexScreener](https://dexscreener.com) API for live Solana market data.
 
+### Run it 24/7 (DigitalOcean)
+
+A scanner is most useful running around the clock. See **[DEPLOY.md](DEPLOY.md)**
+for a step-by-step DigitalOcean Droplet + Docker Compose setup (with a persistent
+data volume, optional HTTPS, and a dashboard login). TL;DR on a Docker host:
+
+```bash
+cp .env.example .env      # set DASHBOARD_PASSWORD
+docker compose up -d --build
+```
+
+> **Dashboard login:** set `DASHBOARD_PASSWORD` in `.env` before exposing the
+> dashboard publicly — it gates the controls (including **Reset**). Unset = no
+> login, which is fine for localhost-only use.
+
 ### Optional: real on-chain wallet data
 
 Token-level signals are 100% real out of the box. To make the **whale-holder

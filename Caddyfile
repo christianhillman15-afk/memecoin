@@ -1,0 +1,33 @@
+# Caddy reverse proxy: automatic HTTPS + login for the MemeRadar dashboard.
+#
+# 1. Point a DNS A-record (e.g. memeradar.example.com) at your droplet's IP.
+# 2. Replace memeradar.example.com below with that domain.
+# 3. Generate a password hash:
+#       docker run --rm caddy caddy hash-password --plaintext 'your-strong-password'
+#    and paste it in place of the REPLACE_WITH_BCRYPT_HASH below.
+# 4. docker compose --profile proxy up -d --build
+#
+# Caddy fetches/renews a real Let's Encrypt certificate automatically.
+# (On Caddy < 2.8 the directive is `basicauth` instead of `basic_auth`.)
+
+memeradar.example.com {
+    encode gzip
+
+    basic_auth {
+        admin REPLACE_WITH_BCRYPT_HASH
+    }
+
+    reverse_proxy memeradar:8000
+}
+
+# --- No domain yet? Test over plain HTTP on the droplet's IP by using this
+# block instead of the one above (comment that out). Auth still applies; HTTPS
+# does not, so only use this temporarily.
+#
+# :80 {
+#     encode gzip
+#     basic_auth {
+#         admin REPLACE_WITH_BCRYPT_HASH
+#     }
+#     reverse_proxy memeradar:8000
+# }

@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
+import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -11,6 +13,47 @@ from typing import Any
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+
+
+class BasicAuthMiddleware:
+    """Gate every HTTP request behind HTTP Basic auth when a password is set.
+
+    Pure ASGI so it never touches the WebSocket scope (the WS only pushes
+    read-only snapshots; all state-changing routes are HTTP POSTs and are
+    protected here). Disabled entirely when no password is configured, so
+    local development stays friction-free.
+    """
+
+    def __init__(self, app, username: str, password: str):
+        self.app = app
+        self.username = username
+        self.password = password
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or not self.password:
+            await self.app(scope, receive, send)
+            return
+        headers = dict(scope.get("headers") or [])
+        if self._authorized(headers.get(b"authorization")):
+            await self.app(scope, receive, send)
+            return
+        await send({"type": "http.response.start", "status": 401, "headers": [
+            (b"www-authenticate", b'Basic realm="MemeRadar"'),
+            (b"content-type", b"text/plain; charset=utf-8")]})
+        await send({"type": "http.response.body", "body": b"Authentication required"})
+
+    def _authorized(self, header: bytes | None) -> bool:
+        if not header:
+            return False
+        try:
+            scheme, _, value = header.decode().partition(" ")
+            if scheme.lower() != "basic":
+                return False
+            user, _, pwd = base64.b64decode(value).decode().partition(":")
+        except (ValueError, UnicodeDecodeError):
+            return False
+        return (secrets.compare_digest(user, self.username)
+                and secrets.compare_digest(pwd, self.password))
 
 from .config import load_config
 from .database import Database
@@ -67,6 +110,12 @@ def create_app() -> FastAPI:
     app.state.cfg = cfg
     app.state.db = db
     app.state.scanner = scanner
+
+    if cfg.auth_enabled:
+        app.add_middleware(BasicAuthMiddleware, username=cfg.dashboard_user,
+                           password=cfg.dashboard_password)
+        logging.getLogger("memeradar").info("Dashboard login enabled (user=%s)",
+                                            cfg.dashboard_user)
 
     # ---- pages ---------------------------------------------------------- #
     @app.get("/")

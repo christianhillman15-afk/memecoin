@@ -65,20 +65,29 @@ class Config:
     host: str = "127.0.0.1"
     port: int = 8000
     db_path: str = str(ROOT / "memeradar.db")
+    # dashboard login (HTTP basic auth) — enabled only when a password is set
+    dashboard_user: str = "admin"
+    dashboard_password: str = field(default="", repr=False)
 
     @property
     def has_wallet_provider(self) -> bool:
         return bool(self.helius_api_key)
 
+    @property
+    def auth_enabled(self) -> bool:
+        return bool(self.dashboard_password)
+
     def public_dict(self) -> dict[str, Any]:
         """Config safe to expose to the dashboard (no secrets)."""
         out: dict[str, Any] = {}
-        secret = {"helius_api_key", "birdeye_api_key", "db_path"}
+        secret = {"helius_api_key", "birdeye_api_key", "db_path",
+                  "dashboard_password", "dashboard_user"}
         for f in fields(self):
             if f.name in secret:
                 continue
             out[f.name] = getattr(self, f.name)
         out["wallet_provider"] = "helius" if self.has_wallet_provider else "simulated"
+        out["auth_enabled"] = self.auth_enabled
         return out
 
 
@@ -98,7 +107,10 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
     cfg.helius_api_key = os.environ.get("HELIUS_API_KEY", cfg.helius_api_key)
     cfg.birdeye_api_key = os.environ.get("BIRDEYE_API_KEY", cfg.birdeye_api_key)
     cfg.host = os.environ.get("MEMEBOT_HOST", cfg.host)
-    cfg.port = int(os.environ.get("MEMEBOT_PORT", cfg.port))
+    # honour MEMEBOT_PORT, falling back to a generic PORT (PaaS convention)
+    cfg.port = int(os.environ.get("MEMEBOT_PORT", os.environ.get("PORT", cfg.port)))
     if os.environ.get("MEMEBOT_DB"):
         cfg.db_path = os.environ["MEMEBOT_DB"]
+    cfg.dashboard_user = os.environ.get("DASHBOARD_USER", cfg.dashboard_user)
+    cfg.dashboard_password = os.environ.get("DASHBOARD_PASSWORD", cfg.dashboard_password)
     return cfg
