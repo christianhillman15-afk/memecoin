@@ -428,3 +428,61 @@ body.modal-open{overflow:hidden}
   .sidebar-foot{border-top:none;flex-direction:row;align-items:center;flex-wrap:wrap;padding-top:0}
   .sidebar-foot .controls{display:flex}
 }
+
+/* ============================================================= */
+/* Trade Specs tab                                               */
+/* ============================================================= */
+.kpis-specs{margin:16px 26px 4px}
+.history-link .panel-head{border-bottom:none}
+.link-btn{background:rgba(25,227,164,.1);border:1px solid var(--border2);color:var(--accent);
+  border-radius:7px;padding:3px 9px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:var(--sans)}
+.link-btn:hover{border-color:var(--accent);background:rgba(25,227,164,.18)}
+.spec-controls{display:flex;gap:10px;padding:12px 18px;flex-wrap:wrap;border-bottom:1px solid var(--border)}
+.spec-controls input,.spec-controls select{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;
+  color:var(--text);padding:8px 11px;font-size:12.5px;font-family:var(--sans);outline:none}
+.spec-controls input{flex:1;min-width:170px}
+.spec-controls input:focus,.spec-controls select:focus{border-color:var(--accent)}
+.spec-controls select{cursor:pointer}
+.spec-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px;padding:14px 16px}
+.spec-card{background:var(--panel2);border:1px solid var(--border2);border-radius:12px;padding:13px 14px;
+  border-left:3px solid var(--muted);cursor:pointer;transition:.15s;display:flex;flex-direction:column;gap:7px}
+.spec-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.spec-card:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.spec-card.win{border-left-color:var(--green)}
+.spec-card.loss{border-left-color:var(--red)}
+.sc-head{display:flex;justify-content:space-between;align-items:center}
+.sc-id{display:flex;align-items:center;gap:7px;font-size:15px}
+.spec-kind{font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;font-weight:700;padding:1px 7px;border-radius:20px}
+.spec-kind.auto{background:rgba(55,214,214,.14);color:var(--cyan)}
+.spec-kind.manual{background:rgba(157,123,255,.16);color:var(--purple)}
+.sc-result{font-size:10.5px;font-weight:800;letter-spacing:.5px;padding:2px 9px;border-radius:20px}
+.sc-result.win{background:rgba(31,210,134,.16);color:var(--green)}
+.sc-result.loss{background:rgba(255,82,103,.16);color:var(--red)}
+.sc-pnl{display:flex;align-items:baseline;gap:10px}
+.sc-pnl-usd{font-family:var(--mono);font-size:21px;font-weight:700;letter-spacing:-.5px}
+.sc-roi{font-family:var(--mono);font-size:12.5px;font-weight:600}
+.sc-line{font-size:11.5px;color:var(--muted);font-family:var(--mono)}
+.sc-why{font-size:12px;color:var(--text);background:var(--panel);border:1px solid var(--border);
+  border-radius:7px;padding:6px 9px;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sc-flags{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.sc-exit{font-size:11px;color:var(--faint);border-top:1px solid var(--border);padding-top:6px}
+.badge.sm{font-size:9px;padding:1px 6px}
+.sm{font-size:10px}
+/* trade profile modal */
+.prof-av.win{background:linear-gradient(135deg,var(--green),#15b673);color:#04140d}
+.prof-av.loss{background:linear-gradient(135deg,var(--red),var(--red-dim));color:#fff}
+.prof-section.sm2{margin-top:11px}
+.spec-why-note{font-size:13px;color:var(--text);background:var(--panel2);border:1px solid var(--border);
+  border-radius:9px;padding:10px 12px;margin-bottom:12px;line-height:1.45}
+.spec-reasons{margin:0 0 10px;padding-left:18px;color:var(--muted);font-size:12.5px;line-height:1.6}
+.spec-reasons li{margin-bottom:1px}
+.tw-list{display:flex;flex-direction:column;gap:6px}
+.tw-row{display:flex;align-items:center;gap:9px;background:var(--panel2);border:1px solid var(--border);
+  border-radius:9px;padding:7px 11px;cursor:pointer;transition:.15s}
+.tw-row:hover{border-color:var(--accent)}
+.tw-row code{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:2px 6px;
+  font-size:10.5px;color:var(--muted)}
+.tw-row .num{margin-left:auto}
+.tw-row .num + .num{margin-left:0}
+.spec-exit-box{background:var(--panel2);border:1px solid var(--border);border-radius:9px;padding:10px 12px;
+  display:flex;flex-direction:column;gap:5px;font-size:13px}

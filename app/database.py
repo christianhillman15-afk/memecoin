@@ -28,7 +28,7 @@ class Database:
                     entry_value REAL, exit_value REAL,
                     pnl REAL, pnl_pct REAL,
                     opened_at REAL, closed_at REAL,
-                    entry_reason TEXT, exit_reason TEXT
+                    entry_reason TEXT, exit_reason TEXT, meta TEXT
                 );
                 CREATE TABLE IF NOT EXISTS equity_curve (
                     ts REAL PRIMARY KEY,
@@ -50,6 +50,17 @@ class Database:
                 """
             )
             self._conn.commit()
+            self._migrate()
+
+    def _migrate(self) -> None:
+        """Add columns introduced after the original schema (idempotent)."""
+        cols = {r["name"] for r in self._conn.execute("PRAGMA table_info(trades)").fetchall()}
+        if "meta" not in cols:
+            try:
+                self._conn.execute("ALTER TABLE trades ADD COLUMN meta TEXT")
+                self._conn.commit()
+            except sqlite3.OperationalError:
+                pass
 
     # --- generic key/value (portfolio cash, counters) --------------------- #
     def kv_get(self, key: str, default: Any = None) -> Any:
@@ -72,11 +83,12 @@ class Database:
             self._conn.execute(
                 """INSERT INTO trades
                    (address,symbol,name,qty,entry_price,exit_price,entry_value,
-                    exit_value,pnl,pnl_pct,opened_at,closed_at,entry_reason,exit_reason)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    exit_value,pnl,pnl_pct,opened_at,closed_at,entry_reason,exit_reason,meta)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (t.address, t.symbol, t.name, t.qty, t.entry_price, t.exit_price,
                  t.entry_value, t.exit_value, t.pnl, t.pnl_pct, t.opened_at,
-                 t.closed_at, t.entry_reason, t.exit_reason),
+                 t.closed_at, t.entry_reason, t.exit_reason,
+                 json.dumps(t.entry_context or {})),
             )
             self._conn.commit()
 
@@ -85,7 +97,16 @@ class Database:
             rows = self._conn.execute(
                 "SELECT * FROM trades ORDER BY closed_at DESC LIMIT ?", (limit,)
             ).fetchall()
-        return [dict(r) for r in rows]
+        out = []
+        for r in rows:
+            d = dict(r)
+            try:
+                d["entry_context"] = json.loads(d.get("meta") or "{}")
+            except (json.JSONDecodeError, TypeError):
+                d["entry_context"] = {}
+            d.pop("meta", None)
+            out.append(d)
+        return out
 
     def trade_stats(self) -> dict[str, Any]:
         with self._lock:

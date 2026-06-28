@@ -46,7 +46,8 @@ class PaperTrader:
         return max(0.0, size)
 
     # --- order management ------------------------------------------------- #
-    def open_position(self, snap: TokenSnapshot, reason: str) -> Optional[Position]:
+    def open_position(self, snap: TokenSnapshot, reason: str,
+                      entry_context: Optional[dict] = None) -> Optional[Position]:
         if not self.can_open() or self.has_position(snap.address):
             return None
         size = self._entry_size()
@@ -58,6 +59,7 @@ class PaperTrader:
             address=snap.address, symbol=snap.symbol, name=snap.name, url=snap.url,
             qty=qty, entry_price=fill, entry_value=size, opened_at=now(),
             peak_price=fill, last_price=fill, entry_reason=reason,
+            entry_context=entry_context or {},
         )
         self.cash -= size
         self.positions[snap.address] = pos
@@ -88,6 +90,7 @@ class PaperTrader:
             pnl=round(pnl, 2), pnl_pct=round(pnl_pct, 2),
             opened_at=pos.opened_at, closed_at=now(),
             entry_reason=pos.entry_reason, exit_reason=reason,
+            entry_context=dict(pos.entry_context or {}),
         )
         self.db.insert_trade(trade)
         del self.positions[address]
@@ -97,7 +100,8 @@ class PaperTrader:
 
     # --- manual trading --------------------------------------------------- #
     def manual_buy(self, snap: TokenSnapshot, usd: float,
-                   reason: str = "manual buy") -> Optional[Position]:
+                   reason: str = "manual buy",
+                   entry_context: Optional[dict] = None) -> Optional[Position]:
         """Buy a USD amount of a coin; averages into an existing position.
         Bypasses the auto-trade position cap (it's the user's explicit choice)."""
         usd = min(usd, self.cash * 0.999)
@@ -112,11 +116,14 @@ class PaperTrader:
             pos.entry_price = pos.entry_value / pos.qty if pos.qty else fill
             pos.last_price = snap.price_usd
             pos.peak_price = max(pos.peak_price, snap.price_usd)
+            if entry_context and not pos.entry_context:
+                pos.entry_context = entry_context
         else:
             pos = Position(
                 address=snap.address, symbol=snap.symbol, name=snap.name, url=snap.url,
                 qty=qty, entry_price=fill, entry_value=usd, opened_at=now(),
-                peak_price=fill, last_price=fill, entry_reason=reason)
+                peak_price=fill, last_price=fill, entry_reason=reason,
+                entry_context=entry_context or {})
             self.positions[snap.address] = pos
         self.cash -= usd
         self._persist()
@@ -142,7 +149,8 @@ class PaperTrader:
             entry_price=pos.entry_price, exit_price=fill, entry_value=cost,
             exit_value=proceeds, pnl=round(pnl, 2), pnl_pct=round(pnl_pct, 2),
             opened_at=pos.opened_at, closed_at=now(),
-            entry_reason=pos.entry_reason, exit_reason=reason)
+            entry_reason=pos.entry_reason, exit_reason=reason,
+            entry_context=dict(pos.entry_context or {}))
         self.db.insert_trade(trade)
         if fraction >= 0.999:
             del self.positions[address]

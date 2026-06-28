@@ -54,6 +54,7 @@
   let lastSnapshot = null;
   let board = [];
   let walletListData = [];
+  let tradesData = [];
   let chain = "solana";
   let activeTab = "overview";
   let selectedPair = null;
@@ -186,24 +187,167 @@
       </tr>`).join("");
   }
 
-  // ---------- trades ----------
+  // ---------- trades / specs ----------
   function renderTrades(trades) {
-    const tb = document.querySelector("#tradesTable tbody");
-    document.getElementById("tradeHint").textContent = `${trades.length} closed · paper`;
-    if (!trades || !trades.length) {
-      tb.innerHTML = `<tr><td colspan="8" class="empty">No closed trades yet.</td></tr>`; return;
+    tradesData = Array.isArray(trades) ? trades : [];
+    renderSpecStats(tradesData);
+    applySpecFilters();
+  }
+
+  function renderSpecStats(trades) {
+    const set = (id, txt, klass) => {
+      const e = document.getElementById(id); if (!e) return;
+      e.textContent = txt; if (klass) e.className = "kpi-value " + klass;
+    };
+    const n = trades.length;
+    const wins = trades.filter((t) => t.pnl > 0);
+    const losses = trades.filter((t) => t.pnl <= 0);
+    const realized = trades.reduce((a, t) => a + (Number(t.pnl) || 0), 0);
+    const grossWin = wins.reduce((a, t) => a + t.pnl, 0);
+    const grossLoss = Math.abs(losses.reduce((a, t) => a + t.pnl, 0));
+    const avgRoi = n ? trades.reduce((a, t) => a + (Number(t.pnl_pct) || 0), 0) / n : 0;
+    const pf = grossLoss > 0 ? grossWin / grossLoss : (grossWin > 0 ? Infinity : 0);
+    const best = trades.reduce((b, t) => (!b || t.pnl_pct > b.pnl_pct ? t : b), null);
+    const worst = trades.reduce((b, t) => (!b || t.pnl_pct < b.pnl_pct ? t : b), null);
+    const open = lastSnapshot?.portfolio?.open_positions ?? 0;
+    set("sTrades", String(n));
+    const oi = document.getElementById("sOpenInfo"); if (oi) oi.textContent = `${open} still open`;
+    set("sWin", n ? (wins.length / n * 100).toFixed(0) + "%" : "—");
+    const wl = document.getElementById("sWL"); if (wl) wl.textContent = `${wins.length} W / ${losses.length} L`;
+    set("sRealized", (realized >= 0 ? "+" : "") + fmtUsd(realized, 0), cls(realized));
+    set("sAvgRoi", n ? fmtPct(avgRoi) : "—", cls(avgRoi));
+    const pfEl = document.getElementById("sProfitFactor");
+    if (pfEl) pfEl.textContent = "profit factor " + (pf === Infinity ? "∞" : pf.toFixed(2));
+    set("sBest", best ? fmtPct(best.pnl_pct) : "—", "pos");
+    const bs = document.getElementById("sBestSym"); if (bs) bs.textContent = best ? `${best.symbol} · ${fmtUsd(best.pnl, 0)}` : "—";
+    set("sWorst", worst ? fmtPct(worst.pnl_pct) : "—", "neg");
+    const ws = document.getElementById("sWorstSym"); if (ws) ws.textContent = worst ? `${worst.symbol} · ${fmtUsd(worst.pnl, 0)}` : "—";
+  }
+
+  const SPEC_SORTERS = {
+    recent: (a, b) => b.closed_at - a.closed_at,
+    oldest: (a, b) => a.closed_at - b.closed_at,
+    pnl_desc: (a, b) => b.pnl - a.pnl,
+    pnl_asc: (a, b) => a.pnl - b.pnl,
+    roi_desc: (a, b) => b.pnl_pct - a.pnl_pct,
+    roi_asc: (a, b) => a.pnl_pct - b.pnl_pct,
+  };
+  function applySpecFilters() {
+    const grid = document.getElementById("specGrid");
+    if (!grid) return;
+    const q = (document.getElementById("specSearch")?.value || "").trim().toLowerCase();
+    const filt = document.getElementById("specFilter")?.value || "all";
+    const sort = document.getElementById("specSort")?.value || "recent";
+    let rows = tradesData.slice();
+    if (filt === "win") rows = rows.filter((t) => t.pnl > 0);
+    else if (filt === "loss") rows = rows.filter((t) => t.pnl <= 0);
+    else if (filt === "auto") rows = rows.filter((t) => (t.entry_context?.kind || "auto") === "auto");
+    else if (filt === "manual") rows = rows.filter((t) => (t.entry_context?.kind) === "manual");
+    if (q) rows = rows.filter((t) => (t.symbol + " " + (t.name || "")).toLowerCase().includes(q));
+    rows.sort(SPEC_SORTERS[sort] || SPEC_SORTERS.recent);
+    if (!rows.length) {
+      grid.innerHTML = `<div class="empty">${tradesData.length ? "No trades match this filter." : "No closed trades yet — they'll appear here with a full profile each."}</div>`;
+      return;
     }
-    tb.innerHTML = trades.map((t) => `
-      <tr>
-        <td><div class="tok"><strong>${esc(t.symbol)}</strong><small>${esc(t.entry_reason||"")}</small></div></td>
-        <td class="num">${fmtPrice(t.entry_price)}</td>
-        <td class="num">${fmtPrice(t.exit_price)}</td>
-        <td class="num">${fmtUsd(t.entry_value, 0)}</td>
-        <td class="num ${cls(t.pnl)}">${fmtUsd(t.pnl)}</td>
-        <td class="num ${cls(t.pnl_pct)}">${fmtPct(t.pnl_pct)}</td>
-        <td class="mut">${esc(t.exit_reason)}</td>
-        <td class="num mut">${ago(t.closed_at)}</td>
-      </tr>`).join("");
+    grid.innerHTML = rows.map(specCard).join("");
+  }
+  function specCard(t) {
+    const win = t.pnl > 0;
+    const ctx = t.entry_context || {};
+    const flagged = ctx.flagged_wallets || [];
+    const why = ctx.reasons && ctx.reasons.length ? ctx.reasons.slice(0, 2).join(" · ")
+      : (t.entry_reason || "—");
+    const kindTag = ctx.kind === "manual" ? `<span class="spec-kind manual">manual</span>`
+      : `<span class="spec-kind auto">auto</span>`;
+    const flagPips = flagged.slice(0, 4).map((w) =>
+      `<span class="badge ${esc(w.kind)} sm">${esc((w.kind || "").replace("_", " "))}</span>`).join("");
+    const held = Math.max(0, (t.closed_at || 0) - (t.opened_at || 0));
+    const heldTxt = held < 3600 ? Math.round(held / 60) + "m" : (held / 3600).toFixed(1) + "h";
+    return `<div class="spec-card ${win ? "win" : "loss"}" data-trade="${esc(t.id)}" tabindex="0" role="button">
+      <div class="sc-head">
+        <div class="sc-id"><strong>${esc(t.symbol)}</strong>${kindTag}</div>
+        <span class="sc-result ${win ? "win" : "loss"}">${win ? "WIN" : "LOSS"}</span>
+      </div>
+      <div class="sc-pnl">
+        <span class="sc-pnl-usd ${cls(t.pnl)}">${(t.pnl >= 0 ? "+" : "") + fmtUsd(t.pnl, 0)}</span>
+        <span class="sc-roi ${cls(t.pnl_pct)}">${fmtPct(t.pnl_pct)} ROI</span>
+      </div>
+      <div class="sc-line"><span class="mut">size</span> ${fmtUsd(t.entry_value, 0)} ·
+        <span class="mut">held</span> ${heldTxt} · <span class="mut">${ago(t.closed_at)}</span></div>
+      <div class="sc-why" title="${esc(why)}">📌 ${esc(why)}</div>
+      ${flagPips ? `<div class="sc-flags">${flagPips}${flagged.length > 4 ? `<span class="mut sm">+${flagged.length - 4}</span>` : ""}</div>` : ""}
+      <div class="sc-exit"><span class="mut">exit:</span> ${esc(t.exit_reason || "—")}</div>
+    </div>`;
+  }
+
+  // per-trade profile modal — "why we bought" + result
+  function openTradeProfile(id) {
+    const t = tradesData.find((x) => String(x.id) === String(id));
+    if (!t) return;
+    const win = t.pnl > 0;
+    const ctx = t.entry_context || {};
+    const held = Math.max(0, (t.closed_at || 0) - (t.opened_at || 0));
+    const heldTxt = held < 3600 ? Math.round(held / 60) + "m" : (held / 3600).toFixed(1) + "h";
+    const dt = (ts) => ts ? new Date(ts * 1000).toLocaleString("en-US",
+      { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+    const hasScore = (v) => v !== null && v !== undefined && !Number.isNaN(Number(v));
+    const scoreBars = [
+      hasScore(ctx.pump_score) ? `<div class="cp-bar"><span>Pump</span>${bar("pump", ctx.pump_score)}</div>` : "",
+      hasScore(ctx.dump_risk) ? `<div class="cp-bar"><span>Dump risk</span>${bar("dump", ctx.dump_risk)}</div>` : "",
+      hasScore(ctx.safety) ? `<div class="cp-bar"><span>Safety</span>${bar("safe", ctx.safety)}</div>` : "",
+      hasScore(ctx.opportunity) ? `<div class="cp-bar"><span>Opportunity</span>${bar("opp", ctx.opportunity)}</div>` : "",
+    ].join("");
+    const reasons = (ctx.reasons || []).map((r) => `<li>${esc(r)}</li>`).join("");
+    const flags = (ctx.flags || []).map((f) => `<span class="tag-flag">${esc(String(f).replace(/_/g, " "))}</span>`).join("");
+    const flagged = (ctx.flagged_wallets || []).map((w) =>
+      `<div class="tw-row wallet-link" data-wallet="${esc(w.wallet)}">
+        <code>${esc(w.wallet_short || (w.wallet || "").slice(0, 8))}</code>
+        <span class="badge ${esc(w.kind)} sm">${esc((w.kind || "").replace("_", " "))}</span>
+        <span class="num mut">${fmtCompact(w.usd)}</span>
+        <span class="num mut">${hasScore(w.win_rate) ? w.win_rate + "%w" : ""}</span>
+      </div>`).join("") || `<div class="mut">No named smart wallets were flagged on this coin at entry.</div>`;
+    const intelLine = [
+      hasScore(ctx.smart_inflow_usd) ? `smart $ <b class="${cls(ctx.smart_inflow_usd)}">${fmtCompact(ctx.smart_inflow_usd)}</b>` : "",
+      hasScore(ctx.whale_count) ? `whales <b>${ctx.whale_count}</b>` : "",
+      hasScore(ctx.insider_count) ? `insiders <b>${ctx.insider_count}</b>` : "",
+      hasScore(ctx.smart_money_count) ? `smart money <b>${ctx.smart_money_count}</b>` : "",
+      hasScore(ctx.whale_concentration) ? `whale conc <b>${Math.round(ctx.whale_concentration)}%</b>` : "",
+    ].filter(Boolean).join(" · ");
+    const kindBadge = ctx.kind === "manual"
+      ? `<span class="spec-kind manual">manual buy</span>`
+      : `<span class="spec-kind auto">auto entry${hasScore(ctx.confidence) ? " · " + Math.round(ctx.confidence) + "% conf" : ""}</span>`;
+    openModal(`
+      <button class="modal-x" data-close>×</button>
+      <div class="prof-head">
+        <div class="prof-av ${win ? "win" : "loss"}">${win ? "✓" : "✕"}</div>
+        <div><div class="prof-name">${esc(t.symbol)} <span class="sc-result ${win ? "win" : "loss"}">${win ? "WIN" : "LOSS"}</span></div>
+          <div class="prof-sub">${esc((t.name || "").slice(0, 28))} ${kindBadge}</div></div>
+      </div>
+      <div class="prof-stats">
+        <div class="pstat"><div class="lbl">P&amp;L</div><div class="val ${cls(t.pnl)}">${(t.pnl >= 0 ? "+" : "") + fmtUsd(t.pnl)}</div></div>
+        <div class="pstat"><div class="lbl">ROI</div><div class="val ${cls(t.pnl_pct)}">${fmtPct(t.pnl_pct)}</div></div>
+        <div class="pstat"><div class="lbl">Size</div><div class="val">${fmtUsd(t.entry_value, 0)}</div></div>
+        <div class="pstat"><div class="lbl">Exit value</div><div class="val">${fmtUsd(t.exit_value, 0)}</div></div>
+        <div class="pstat"><div class="lbl">Entry → Exit</div><div class="val sm">${fmtPrice(t.entry_price)} → ${fmtPrice(t.exit_price)}</div></div>
+        <div class="pstat"><div class="lbl">Held</div><div class="val">${heldTxt}</div></div>
+      </div>
+      <div class="prof-section">📌 Why we bought ${ctx.phase ? `<span class="badge ${esc(ctx.phase)}">${esc(ctx.phase)}</span>` : ""}</div>
+      <div class="spec-why-note">${esc(ctx.note || t.entry_reason || "—")}</div>
+      ${scoreBars ? `<div class="cp-bars">${scoreBars}</div>` : ""}
+      ${intelLine ? `<div class="cp-meta">${intelLine}${ctx.confirmed_multi_sell ? ' · <span class="rug-bad">🚨 multi-sell later</span>' : ""}</div>` : ""}
+      ${reasons ? `<div class="prof-section sm2">Signals at entry</div><ul class="spec-reasons">${reasons}</ul>` : ""}
+      ${flags ? `<div class="cp-flags">${flags}</div>` : ""}
+      <div class="prof-section">🕵️ Flagged wallets at entry <span class="hint">click to open</span></div>
+      <div class="tw-list">${flagged}</div>
+      <div class="prof-section">🚪 Exit</div>
+      <div class="spec-exit-box">
+        <div><span class="mut">reason:</span> <b>${esc(t.exit_reason || "—")}</b></div>
+        <div class="sm mut">opened ${dt(t.opened_at)} · closed ${dt(t.closed_at)}</div>
+      </div>
+      <div class="prof-foot">Scores &amp; flagged wallets are captured at the moment of entry. Wallet identities are
+        simulated &amp; labelled; token data is real.</div>
+    `, "modal");
+    currentModal = { type: "trade", id: t.id };
   }
 
   // ---------- equity chart ----------
@@ -795,8 +939,9 @@
   }
 
   // ---------- tabs ----------
-  const VIEW_TITLES = { overview: "Dashboard", trade: "Trade", charts: "Live Charts",
-                        wallets: "Wallet intelligence", influencers: "Influencer wallets" };
+  const VIEW_TITLES = { overview: "Dashboard", trade: "Trade", specs: "Trade Specs",
+                        charts: "Live Charts", wallets: "Wallet intelligence",
+                        influencers: "Influencer wallets" };
   function switchTab(name) {
     activeTab = name;
     document.querySelectorAll(".nav-item").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
@@ -804,12 +949,18 @@
     const vt = document.getElementById("viewTitle");
     if (vt) vt.textContent = VIEW_TITLES[name] || name;
     if (name === "trade") renderBuyOptions(board);
+    if (name === "specs") { renderSpecStats(tradesData); applySpecFilters(); }
     if (name === "charts") renderCoinList(document.getElementById("coinSearch").value);
     if (name === "wallets") refreshWalletsTab();
     if (name === "influencers") refreshInfluencers();
   }
   document.querySelectorAll(".nav-item").forEach((t) =>
     t.addEventListener("click", () => switchTab(t.dataset.tab)));
+  // spec filter/sort controls
+  ["specSearch", "specFilter", "specSort"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(id === "specSearch" ? "input" : "change", applySpecFilters);
+  });
 
   // board row (Trade tab) → load coin into the buy box
   document.querySelector("#boardTable tbody").addEventListener("click", (e) => {
@@ -906,12 +1057,18 @@
       if (sellEl) { e.stopPropagation(); doSell(sellEl.dataset.sell, parseFloat(sellEl.dataset.frac)); return; }
       const amtEl = e.target.closest(".quick-amts button");
       if (amtEl) { document.getElementById("buyUsd").value = amtEl.dataset.amt; return; }
+      const gotoEl = e.target.closest("[data-goto]");
+      if (gotoEl) { switchTab(gotoEl.dataset.goto); return; }
       const copyEl = e.target.closest("[data-copy]");
       if (copyEl) { if (navigator.clipboard) navigator.clipboard.writeText(copyEl.dataset.copy); return; }
+      const tradeEl = e.target.closest("[data-trade]");
+      if (tradeEl && !e.target.closest("[data-wallet]")) { openTradeProfile(tradeEl.dataset.trade); return; }
       const w = e.target.closest("[data-wallet]");
       if (w && w.dataset.wallet) {
         if (currentModal && currentModal.type === "cabal") {
           const cid = currentModal.id; modalStack.push(() => openCabalProfile(cid));
+        } else if (currentModal && currentModal.type === "trade") {
+          const tid = currentModal.id; modalStack.push(() => openTradeProfile(tid));
         }
         openWalletProfile(w.dataset.wallet); return;
       }

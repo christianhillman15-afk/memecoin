@@ -19,6 +19,7 @@
       <nav class="nav" id="nav">
         <button class="nav-item active" data-tab="overview"><span class="ni">📊</span> Dashboard</button>
         <button class="nav-item" data-tab="trade"><span class="ni">💱</span> Trade</button>
+        <button class="nav-item" data-tab="specs"><span class="ni">📒</span> Trade Specs</button>
         <button class="nav-item" data-tab="charts"><span class="ni">📈</span> Charts</button>
         <button class="nav-item" data-tab="wallets"><span class="ni">👛</span> Wallets</button>
         <button class="nav-item" data-tab="influencers"><span class="ni">📣</span> Influencers</button>
@@ -112,19 +113,46 @@
               </table>
             </div>
           </section>
-          <section class="panel span-3">
-            <div class="panel-head"><h2>Trade history</h2><span class="hint" id="tradeHint">closed paper trades</span></div>
-            <div class="table-wrap scroll">
-              <table id="tradesTable">
-                <thead><tr>
-                  <th>Token</th><th class="num">Entry</th><th class="num">Exit</th>
-                  <th class="num">Size</th><th class="num">P&amp;L</th><th class="num">P&amp;L %</th>
-                  <th>Exit reason</th><th class="num">Closed</th>
-                </tr></thead>
-                <tbody><tr><td colspan="8" class="empty">No closed trades yet.</td></tr></tbody>
-              </table>
-            </div>
+          <section class="panel span-3 history-link">
+            <div class="panel-head"><h2>Trade history</h2>
+              <span class="hint">every closed trade with a full profile lives in the
+                <button class="link-btn" data-goto="specs">📒 Trade Specs</button> tab</span></div>
           </section>
+        </div>
+      </main>
+
+      <!-- ============================ SPECS ============================ -->
+      <main class="tabpane" id="pane-specs">
+        <section class="kpis kpis-specs" id="specStats">
+          <div class="kpi"><div class="kpi-label">Closed trades</div><div class="kpi-value" id="sTrades">—</div><div class="kpi-sub" id="sOpenInfo">—</div></div>
+          <div class="kpi"><div class="kpi-label">Win rate</div><div class="kpi-value" id="sWin">—</div><div class="kpi-sub" id="sWL">— W / — L</div></div>
+          <div class="kpi"><div class="kpi-label">Realized P&amp;L</div><div class="kpi-value" id="sRealized">—</div><div class="kpi-sub">booked</div></div>
+          <div class="kpi"><div class="kpi-label">Avg ROI / trade</div><div class="kpi-value" id="sAvgRoi">—</div><div class="kpi-sub" id="sProfitFactor">profit factor —</div></div>
+          <div class="kpi"><div class="kpi-label">Best trade</div><div class="kpi-value pos" id="sBest">—</div><div class="kpi-sub" id="sBestSym">—</div></div>
+          <div class="kpi"><div class="kpi-label">Worst trade</div><div class="kpi-value neg" id="sWorst">—</div><div class="kpi-sub" id="sWorstSym">—</div></div>
+        </section>
+        <div class="panel span-full">
+          <div class="panel-head"><h2>📒 Trade specs</h2>
+            <span class="hint">click any trade for its full profile — why we bought, flagged wallets, scores, result</span></div>
+          <div class="spec-controls">
+            <input id="specSearch" type="text" placeholder="🔎 Search symbol / name…" />
+            <select id="specFilter">
+              <option value="all">All trades</option>
+              <option value="win">Wins only</option>
+              <option value="loss">Losses only</option>
+              <option value="auto">Auto entries</option>
+              <option value="manual">Manual entries</option>
+            </select>
+            <select id="specSort">
+              <option value="recent">Most recent</option>
+              <option value="oldest">Oldest</option>
+              <option value="pnl_desc">P&amp;L: high → low</option>
+              <option value="pnl_asc">P&amp;L: low → high</option>
+              <option value="roi_desc">ROI: high → low</option>
+              <option value="roi_asc">ROI: low → high</option>
+            </select>
+          </div>
+          <div class="spec-grid" id="specGrid"><div class="empty">No closed trades yet — they'll appear here with a full profile each.</div></div>
         </div>
       </main>
 

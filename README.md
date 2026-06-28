@@ -134,20 +134,35 @@ controls (pause / scan / reset) tucked into the sidebar foot.
 **Manual paper trading.** Buy any scanned coin (pick from the dropdown or click a
 row in the opportunity scanner, set a USD amount or use the $50/$100/$250/$500
 quick buttons) and **sell** any position 25% / 50% / 100%. Fills use the live
-price with slippage + fees. This tab also holds open positions, the opportunity
-scanner, and trade history. Auto-trading and manual trading coexist — pause auto
-for full manual control.
+price with slippage + fees. This tab also holds open positions and the
+opportunity scanner. Auto-trading and manual trading coexist — pause auto for
+full manual control.
+
+### 📒 Trade Specs
+**Every closed trade gets a profile.** A summary strip (closed trades, win rate,
+realized P&L, avg ROI / profit factor, best & worst trade) sits above a grid of
+**trade cards** — each shows win/loss, P&L, ROI, size, hold time and a one-line
+"why we bought". Filter (wins / losses / auto / manual), search by symbol, and
+sort by recency / P&L / ROI. **Click any trade** for the full profile: the result
+(P&L, ROI, entry→exit price, hold), the **"why we bought"** evidence captured at
+entry — pump/dump/safety/opportunity scores, market phase, the exact signals and
+flags, smart-money inflow and whale/insider counts, and the **named wallets that
+were flagged on that coin** (click through to each wallet) — plus the exit reason.
+The entry context is snapshotted at buy time, so the record reflects what the bot
+actually saw, not the coin's state today.
 
 ### 📊 Dashboard (Overview)
+A decluttered at-a-glance view: the KPI strip, the equity curve, and the live
+signals feed.
+
 | Panel | Shows |
 |---|---|
 | **KPI strip** | Equity, total P&L, realized vs unrealized, win rate, open positions, cash deployed. |
 | **Equity curve** | Live paper-portfolio value over time. |
 | **Signals & alerts** | Pumps, dump warnings, whale buys, coordinated sells, and every entry/exit with its reason. |
-| **Open positions** | Live P&L, peak price, and the active exit guard (e.g. “trailing · 6% off peak”). |
-| **Whale / insider watchlist** | Most active tracked smart wallets and their net flow. |
-| **Opportunity scanner** | Every scanned token ranked by opportunity, with pump / dump-risk / safety bars. Click any row to chart it. |
-| **Trade history** | Closed paper trades with entry/exit, P&L, and exit reason. |
+
+Open positions and the opportunity scanner live on the **Trade** tab; closed
+trades and their profiles on the **Trade Specs** tab.
 
 ### 📈 Live Charts
 Every scanned coin gets a **profile** (full DexScreener stats — price, all

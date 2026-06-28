@@ -259,13 +259,62 @@ class Scanner:
             intel = self._intel_from_dict(b["intel"])
             decision = evaluate_entry(snap, det, intel, self.cfg)
             if decision.enter:
-                pos = self.trader.open_position(snap, decision.reason)
+                ctx = self._build_entry_context(b, "auto", decision.reason)
+                ctx["confidence"] = round(decision.confidence, 0)
+                pos = self.trader.open_position(snap, decision.reason, entry_context=ctx)
                 if pos:
                     self._emit(Signal("entry", "info", addr, snap.symbol,
                                       f"BOUGHT {snap.symbol} ${pos.entry_value:.0f} "
                                       f"(conf {decision.confidence:.0f}%) — {decision.reason}",
                                       meta={"confidence": decision.confidence,
                                             "url": snap.url}))
+
+    # --- entry context (the "why we bought" record for the Trades tab) --- #
+    @staticmethod
+    def _build_entry_context(b: dict[str, Any], kind: str, note: str) -> dict[str, Any]:
+        """Snapshot the evidence behind an entry so a closed trade can explain
+        itself: scores, market phase, and which flagged wallets were active."""
+        det = b.get("detection", {})
+        intel = b.get("intel", {})
+        tok = b.get("token", {})
+        # which named smart wallets were buying this coin at entry
+        flagged = []
+        for ev in intel.get("recent_events", []):
+            if ev.get("side") == "buy" and ev.get("kind") in (
+                    "whale", "insider", "smart_money"):
+                flagged.append({
+                    "wallet": ev.get("wallet"),
+                    "wallet_short": ev.get("wallet_short"),
+                    "kind": ev.get("kind"),
+                    "usd": round(float(ev.get("usd", 0)), 0),
+                    "win_rate": round(float(ev.get("win_rate", 0)) * 100, 0),
+                })
+        flagged.sort(key=lambda w: w["usd"], reverse=True)
+        return {
+            "kind": kind,
+            "note": note,
+            "price_at_entry": tok.get("price_usd"),
+            "liquidity_usd": tok.get("liquidity_usd"),
+            "market_cap": tok.get("market_cap"),
+            "age_minutes": tok.get("age_minutes"),
+            "pump_score": det.get("pump_score"),
+            "dump_risk": det.get("dump_risk"),
+            "safety": det.get("safety"),
+            "opportunity": det.get("opportunity"),
+            "momentum": det.get("momentum"),
+            "phase": det.get("phase"),
+            "reasons": list(det.get("reasons", []))[:6],
+            "flags": list(det.get("flags", []))[:8],
+            "smart_inflow_usd": intel.get("smart_inflow_usd"),
+            "smart_inflow_score": intel.get("smart_inflow_score"),
+            "whale_count": intel.get("whale_count"),
+            "insider_count": intel.get("insider_count"),
+            "smart_money_count": intel.get("smart_money_count"),
+            "whale_concentration": intel.get("whale_concentration"),
+            "confirmed_multi_sell": intel.get("confirmed_multi_sell"),
+            "multi_sell_wallets": intel.get("multi_sell_wallets"),
+            "flagged_wallets": flagged[:8],
+        }
 
     # --- small dict<->object helpers ------------------------------------- #
     @staticmethod
@@ -295,7 +344,11 @@ class Scanner:
             return {"ok": False, "error": "coin not in the current scan universe"}
         if usd <= 0:
             return {"ok": False, "error": "amount must be positive"}
-        pos = self.trader.manual_buy(snap, usd)
+        board_entry = next((b for b in self.board
+                            if b["token"]["address"] == address), None)
+        ctx = (self._build_entry_context(board_entry, "manual", "manual buy")
+               if board_entry else {"kind": "manual", "note": "manual buy"})
+        pos = self.trader.manual_buy(snap, usd, entry_context=ctx)
         if not pos:
             return {"ok": False, "error": "buy failed (insufficient cash?)"}
         self._emit(Signal("entry", "info", address, snap.symbol,

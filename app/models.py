@@ -156,6 +156,7 @@ class Position:
     entry_reason: str = ""
     trailing_armed: bool = False
     high_water_pnl_pct: float = 0.0
+    entry_context: dict = field(default_factory=dict)  # why we bought (scores/intel)
 
     @property
     def market_value(self) -> float:
@@ -202,6 +203,7 @@ class Trade:
     closed_at: float
     entry_reason: str
     exit_reason: str
+    entry_context: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
