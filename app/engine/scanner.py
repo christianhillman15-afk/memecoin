@@ -53,12 +53,22 @@ class Scanner:
         self.board: list[dict[str, Any]] = []
         self._task: Optional[asyncio.Task] = None
         self._on_update: list[Callable[[], None]] = []
+        self._on_signal: list[Callable[[Signal], None]] = []
 
     def on_update(self, cb: Callable[[], None]) -> None:
         self._on_update.append(cb)
 
+    def on_signal(self, cb: Callable[[Signal], None]) -> None:
+        """Subscribe to signals as they are emitted (e.g. Telegram alerts)."""
+        self._on_signal.append(cb)
+
     def _emit(self, sig: Signal) -> None:
         self.db.insert_signal(sig)
+        for cb in self._on_signal:
+            try:
+                cb(sig)
+            except Exception:  # noqa: BLE001 — a bad listener must not break scanning
+                pass
 
     # --- lifecycle -------------------------------------------------------- #
     def start(self) -> None:
