@@ -20,6 +20,7 @@
         <button class="nav-item active" data-tab="overview"><span class="ni">📊</span> Dashboard</button>
         <button class="nav-item" data-tab="trade"><span class="ni">💱</span> Trade</button>
         <button class="nav-item" data-tab="specs"><span class="ni">📒</span> Trade Specs</button>
+        <button class="nav-item" data-tab="launchpad"><span class="ni">🚀</span> Launchpad</button>
         <button class="nav-item" data-tab="charts"><span class="ni">📈</span> Charts</button>
         <button class="nav-item" data-tab="wallets"><span class="ni">👛</span> Wallets</button>
         <button class="nav-item" data-tab="influencers"><span class="ni">📣</span> Influencers</button>
@@ -142,6 +143,7 @@
               <option value="loss">Losses only</option>
               <option value="auto">Auto entries</option>
               <option value="manual">Manual entries</option>
+              <option value="spray">Spray bets</option>
             </select>
             <select id="specSort">
               <option value="recent">Most recent</option>
@@ -153,6 +155,45 @@
             </select>
           </div>
           <div class="spec-grid" id="specGrid"><div class="empty">No closed trades yet — they'll appear here with a full profile each.</div></div>
+        </div>
+      </main>
+
+      <!-- ============================ LAUNCHPAD ============================ -->
+      <main class="tabpane" id="pane-launchpad">
+        <section class="kpis kpis-lp" id="lpStats">
+          <div class="kpi"><div class="kpi-label">Stream</div><div class="kpi-value" id="lpConn">—</div><div class="kpi-sub" id="lpConnSub">pump.fun live</div></div>
+          <div class="kpi"><div class="kpi-label">New coins seen</div><div class="kpi-value" id="lpSeen">—</div><div class="kpi-sub" id="lpTracked">0 fresh now</div></div>
+          <div class="kpi"><div class="kpi-label">Graduated</div><div class="kpi-value" id="lpGrad">—</div><div class="kpi-sub">made the curve 🎓</div></div>
+          <div class="kpi"><div class="kpi-label">Surfaced</div><div class="kpi-value" id="lpSurfaced">—</div><div class="kpi-sub" id="lpCreators">0 creators known</div></div>
+          <div class="kpi"><div class="kpi-label">Spray bets</div><div class="kpi-value" id="lpSprayOpen">—</div><div class="kpi-sub" id="lpSprayDeployed">$0 deployed</div></div>
+          <div class="kpi"><div class="kpi-label">Spray P&amp;L</div><div class="kpi-value" id="lpSprayPnl">—</div><div class="kpi-sub" id="lpSprayState">off</div></div>
+        </section>
+
+        <div class="lp-toolbar">
+          <div class="lp-spray">
+            <button id="sprayToggle" class="btn">Spray: off</button>
+            <span class="hint">tiny auto-bets across the strongest fresh coins — each explodes or goes to zero (paper)</span>
+          </div>
+          <div class="lp-buy">
+            <span class="tf-lbl">Manual bet $</span>
+            <input id="lpBuyUsd" type="number" min="1" step="10" value="50" />
+            <label class="lp-check"><input type="checkbox" id="lpSurfacedOnly" /> surfaced only</label>
+          </div>
+        </div>
+
+        <div class="grid">
+          <section class="panel span-2">
+            <div class="panel-head"><h2>🚀 Fresh coins — moonshot board</h2>
+              <span class="hint" id="lpBoardHint">live pump.fun launches, scored</span></div>
+            <div class="lp-board" id="lpBoard"><div class="empty">Connecting to the pump.fun firehose…</div></div>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><h2>💸 Spray bets</h2><span class="hint" id="lpSprayHint">paper</span></div>
+            <div class="lp-spray-list" id="lpSprayList"><div class="empty">Spray is off. Toggle it to auto-bet on the strongest fresh coins.</div></div>
+            <div class="panel-head" style="border-top:1px solid var(--border)"><h2>🧑‍🚀 Discovered launchers</h2>
+              <span class="hint">real creator wallets</span></div>
+            <div class="lp-creators" id="lpCreatorsList"><div class="empty">Watching who launches coins that take off…</div></div>
+          </section>
         </div>
       </main>
 

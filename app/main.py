@@ -186,6 +186,10 @@ def create_app() -> FastAPI:
     async def api_influencers() -> JSONResponse:
         return JSONResponse(scanner.influencers.snapshot())
 
+    @app.get("/api/launchpad")
+    async def api_launchpad() -> JSONResponse:
+        return JSONResponse(scanner.launchpad_snapshot())
+
     @app.get("/api/config")
     async def api_config() -> JSONResponse:
         return JSONResponse(cfg.public_dict())
@@ -218,6 +222,12 @@ def create_app() -> FastAPI:
         body = await request.json()
         return scanner.manual_sell(str(body.get("address", "")),
                                    float(body.get("fraction", 1.0) or 1.0))
+
+    @app.post("/api/control/spray")
+    async def ctrl_spray(request: Request) -> dict[str, Any]:
+        body = await request.json()
+        on = scanner.launchpad.set_spray(bool(body.get("on")))
+        return {"ok": True, "spray_enabled": on}
 
     @app.post("/api/control/scan")
     async def ctrl_scan() -> dict[str, Any]:

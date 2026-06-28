@@ -33,8 +33,16 @@ class PaperTrader:
     def equity(self) -> float:
         return self.cash + sum(p.market_value for p in self.positions.values())
 
+    @staticmethod
+    def is_spray(pos: Position) -> bool:
+        return (pos.entry_context or {}).get("kind") == "spray"
+
+    def core_positions(self) -> int:
+        """Open positions that count against the auto/manual cap (spray excluded)."""
+        return sum(1 for p in self.positions.values() if not self.is_spray(p))
+
     def can_open(self) -> bool:
-        return (len(self.positions) < self.cfg.max_open_positions
+        return (self.core_positions() < self.cfg.max_open_positions
                 and self.cash > 50)
 
     def has_position(self, address: str) -> bool:
@@ -99,11 +107,10 @@ class PaperTrader:
         return trade
 
     # --- manual trading --------------------------------------------------- #
-    def manual_buy(self, snap: TokenSnapshot, usd: float,
-                   reason: str = "manual buy",
-                   entry_context: Optional[dict] = None) -> Optional[Position]:
-        """Buy a USD amount of a coin; averages into an existing position.
-        Bypasses the auto-trade position cap (it's the user's explicit choice)."""
+    def _buy_into(self, snap: TokenSnapshot, usd: float, reason: str,
+                  entry_context: Optional[dict], tag: str) -> Optional[Position]:
+        """Shared buy path for manual + spray trades. Averages into an existing
+        position. Bypasses the auto-trade position cap (it's an explicit bet)."""
         usd = min(usd, self.cash * 0.999)
         if usd < 1 or snap.price_usd <= 0:
             return None
@@ -127,8 +134,22 @@ class PaperTrader:
             self.positions[snap.address] = pos
         self.cash -= usd
         self._persist()
-        log.info("MANUAL BUY %s $%.0f @ %.8f", snap.symbol, usd, fill)
+        log.info("%s %s $%.0f @ %.8f", tag, snap.symbol, usd, fill)
         return pos
+
+    def manual_buy(self, snap: TokenSnapshot, usd: float,
+                   reason: str = "manual buy",
+                   entry_context: Optional[dict] = None) -> Optional[Position]:
+        return self._buy_into(snap, usd, reason, entry_context, "MANUAL BUY")
+
+    def spray_buy(self, snap: TokenSnapshot, usd: float,
+                  reason: str = "spray bet",
+                  entry_context: Optional[dict] = None) -> Optional[Position]:
+        """A tiny launchpad bet. Tagged via entry_context kind='spray' so it's
+        managed by the launchpad ladder, not the normal exit rules."""
+        ctx = entry_context or {}
+        ctx.setdefault("kind", "spray")
+        return self._buy_into(snap, usd, reason, ctx, "SPRAY BUY")
 
     def manual_sell(self, address: str, price: float, fraction: float = 1.0,
                     reason: str = "manual sell") -> Optional[Trade]:

@@ -49,6 +49,34 @@ loadout_max_age_minutes: 1440  # "fresh" = launched within ~24h (1440 min)
 loadout_min_score: 45          # 0-100; minimum loadout score to surface a coin
 loadout_ttl_seconds: 240       # drop a loadout if not re-confirmed within this
 
+# --- Launchpad: catch pump.fun coins in their first minutes -------------------
+# Streams every brand-new pump.fun coin (free PumpPortal websocket), enriches it
+# with live DexScreener data, and scores its "moonshot" potential. Also tracks
+# creator wallets and which of their coins gain traction / graduate — real,
+# auto-discovered wallet intelligence. A funded PUMPPORTAL_API_KEY (in .env)
+# additionally unlocks the per-trade buyer stream for per-wallet discovery.
+launchpad_enabled: true
+launchpad_max_age_minutes: 30     # a coin is "fresh" for its first 30 min
+launchpad_universe: 60            # max fresh coins enriched per cycle
+launchpad_keep_minutes: 90        # keep coins in memory this long
+moonshot_min_score: 55            # 0-100; surface threshold on the launchpad board
+creator_traction_liq_usd: 18000   # liquidity that counts as a creator "hit"
+creator_traction_vol_usd: 25000   # ...or this much 1h volume
+
+# --- Spray mode: tiny auto paper-bets across early candidates -----------------
+# Opt-in. "Put a small amount in each — it either explodes or goes to zero."
+# Sprays a fixed tiny bet across the strongest fresh candidates, then exits on a
+# big multiple, a hard stop, or a stall. All paper, capped, and clearly tagged.
+spray_enabled: false              # master switch (off by default — it churns)
+spray_bet_usd: 25                 # size of each tiny bet
+spray_max_positions: 20           # max concurrent spray bets
+spray_max_total_usd: 600          # total paper capital at risk in spray
+spray_min_score: 70               # only spray the strongest candidates
+spray_min_liquidity_usd: 3000     # need a real market (liquidity or 1h volume) to mark & exit
+spray_take_profit_mult: 3.0       # bank at +200% (3x)
+spray_stop_loss_pct: 0.55         # cut at -55%
+spray_max_hold_minutes: 90        # bail if it stalls
+
 # --- On-chain rug safety (free via the Solana RPC) ---------------------------
 safety_check_authority: true       # fetch mint/freeze authority for each token
 block_unrenounced_authority: true  # refuse to buy if mint/freeze authority is live

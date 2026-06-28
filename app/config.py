@@ -62,6 +62,29 @@ class Config:
     loadout_min_score: float = 45
     loadout_ttl_seconds: int = 240
 
+    # launchpad — catch pump.fun coins in their first minutes (PumpPortal WS +
+    # DexScreener enrichment). Free out of the box (new-coin + migration streams);
+    # a funded PUMPPORTAL_API_KEY additionally unlocks the per-trade buyer stream.
+    launchpad_enabled: bool = True
+    launchpad_max_age_minutes: int = 30      # how old a "fresh" coin can be
+    launchpad_universe: int = 60             # max fresh coins enriched per cycle
+    launchpad_keep_minutes: int = 90         # retain coins in memory this long
+    moonshot_min_score: float = 55           # 0-100; surface threshold on the board
+    creator_traction_liq_usd: float = 18000  # liquidity that counts as a creator "hit"
+    creator_traction_vol_usd: float = 25000  # ...or this much 1h volume
+
+    # spray mode — tiny auto paper-bets across early candidates (opt-in; it churns
+    # many small positions: "each either explodes or goes to zero")
+    spray_enabled: bool = False
+    spray_bet_usd: float = 25                 # size of each tiny bet
+    spray_max_positions: int = 20             # max concurrent spray bets
+    spray_max_total_usd: float = 600          # total capital at risk in spray
+    spray_min_score: float = 70               # only spray the strongest candidates
+    spray_min_liquidity_usd: float = 3000     # need a real market (liq or 1h vol) to mark/exit
+    spray_take_profit_mult: float = 3.0       # bank at +200% (3x)
+    spray_stop_loss_pct: float = 0.55         # cut at -55%
+    spray_max_hold_minutes: int = 90          # bail if it stalls
+
     # on-chain rug safety (free via the Solana RPC)
     safety_check_authority: bool = True       # fetch mint/freeze authority status
     block_unrenounced_authority: bool = True  # refuse to buy if mint/freeze is live
@@ -83,6 +106,7 @@ class Config:
     # secrets / runtime (from env, not persisted)
     helius_api_key: str = field(default="", repr=False)
     birdeye_api_key: str = field(default="", repr=False)
+    pumpportal_api_key: str = field(default="", repr=False)  # optional: unlocks trade stream
     host: str = "127.0.0.1"
     port: int = 8000
     db_path: str = str(ROOT / "memeradar.db")
@@ -100,6 +124,11 @@ class Config:
         return bool(self.helius_api_key)
 
     @property
+    def has_pumpportal_trades(self) -> bool:
+        """A funded PumpPortal key unlocks the per-trade buyer stream."""
+        return bool(self.pumpportal_api_key)
+
+    @property
     def auth_enabled(self) -> bool:
         return bool(self.dashboard_password)
 
@@ -111,7 +140,7 @@ class Config:
     def public_dict(self) -> dict[str, Any]:
         """Config safe to expose to the dashboard (no secrets)."""
         out: dict[str, Any] = {}
-        secret = {"helius_api_key", "birdeye_api_key", "db_path",
+        secret = {"helius_api_key", "birdeye_api_key", "pumpportal_api_key", "db_path",
                   "dashboard_password", "dashboard_user",
                   # never leak who can read/control the desk, or the tokens
                   "telegram_bot_token", "telegram_reset_token",
@@ -123,6 +152,7 @@ class Config:
         out["wallet_provider"] = "helius" if self.has_wallet_provider else "simulated"
         out["auth_enabled"] = self.auth_enabled
         out["telegram_enabled"] = self.telegram_enabled
+        out["pumpportal_trades"] = self.has_pumpportal_trades
         return out
 
 
@@ -141,6 +171,7 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
     # environment overrides (secrets + host/port)
     cfg.helius_api_key = os.environ.get("HELIUS_API_KEY", cfg.helius_api_key)
     cfg.birdeye_api_key = os.environ.get("BIRDEYE_API_KEY", cfg.birdeye_api_key)
+    cfg.pumpportal_api_key = os.environ.get("PUMPPORTAL_API_KEY", cfg.pumpportal_api_key)
     cfg.host = os.environ.get("MEMEBOT_HOST", cfg.host)
     # honour MEMEBOT_PORT, falling back to a generic PORT (PaaS convention)
     cfg.port = int(os.environ.get("MEMEBOT_PORT", os.environ.get("PORT", cfg.port)))

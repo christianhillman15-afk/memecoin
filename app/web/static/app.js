@@ -159,7 +159,7 @@
   }
 
   // ---------- signals ----------
-  const SIG_ICON = { pump: "▲", dump: "▼", multi_sell: "⚠", whale_buy: "◆", entry: "▶", exit: "■", bundle: "📦" };
+  const SIG_ICON = { pump: "▲", dump: "▼", multi_sell: "⚠", whale_buy: "◆", entry: "▶", exit: "■", bundle: "📦", spray: "💸" };
   function renderSignals(signals) {
     const el = document.getElementById("signalsFeed");
     if (!signals || !signals.length) { el.innerHTML = `<div class="empty">Waiting for signals…</div>`; return; }
@@ -243,6 +243,7 @@
     else if (filt === "loss") rows = rows.filter((t) => t.pnl <= 0);
     else if (filt === "auto") rows = rows.filter((t) => (t.entry_context?.kind || "auto") === "auto");
     else if (filt === "manual") rows = rows.filter((t) => (t.entry_context?.kind) === "manual");
+    else if (filt === "spray") rows = rows.filter((t) => (t.entry_context?.kind) === "spray");
     if (q) rows = rows.filter((t) => (t.symbol + " " + (t.name || "")).toLowerCase().includes(q));
     rows.sort(SPEC_SORTERS[sort] || SPEC_SORTERS.recent);
     if (!rows.length) {
@@ -258,6 +259,7 @@
     const why = ctx.reasons && ctx.reasons.length ? ctx.reasons.slice(0, 2).join(" · ")
       : (t.entry_reason || "—");
     const kindTag = ctx.kind === "manual" ? `<span class="spec-kind manual">manual</span>`
+      : ctx.kind === "spray" ? `<span class="spec-kind spray">spray</span>`
       : `<span class="spec-kind auto">auto</span>`;
     const flagPips = flagged.slice(0, 4).map((w) =>
       `<span class="badge ${esc(w.kind)} sm">${esc((w.kind || "").replace("_", " "))}</span>`).join("");
@@ -315,6 +317,8 @@
     ].filter(Boolean).join(" · ");
     const kindBadge = ctx.kind === "manual"
       ? `<span class="spec-kind manual">manual buy</span>`
+      : ctx.kind === "spray"
+      ? `<span class="spec-kind spray">spray bet${hasScore(ctx.moonshot) ? " · moonshot " + Math.round(ctx.moonshot) : ""}</span>`
       : `<span class="spec-kind auto">auto entry${hasScore(ctx.confidence) ? " · " + Math.round(ctx.confidence) + "% conf" : ""}</span>`;
     openModal(`
       <button class="modal-x" data-close>×</button>
@@ -718,6 +722,141 @@
     }).join("");
   }
 
+  // ================= LAUNCHPAD TAB =================
+  let launchpadData = null;
+  let lpSurfacedOnly = false;
+
+  async function refreshLaunchpad() {
+    try { renderLaunchpad(await fetch("/api/launchpad").then((r) => r.json())); }
+    catch (e) { /* ignore */ }
+  }
+  function lpMsg(text, ok) {
+    const h = document.getElementById("lpBoardHint");
+    if (!h) return;
+    h.textContent = text;
+    h.className = "hint " + (ok === true ? "ok" : ok === false ? "err" : "");
+    if (ok !== undefined) setTimeout(() => {
+      h.textContent = "live pump.fun launches, scored"; h.className = "hint";
+    }, 4000);
+  }
+  function renderLaunchpad(d) {
+    if (!d) return;
+    launchpadData = d;
+    const s = d.stats || {};
+    const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+    const conn = document.getElementById("lpConn");
+    if (conn) { conn.textContent = s.connected ? "● live" : "○ offline";
+                conn.className = "kpi-value " + (s.connected ? "pos" : "neg"); }
+    set("lpConnSub", s.trade_stream ? "pump.fun · trade stream on" : "pump.fun · new+migrate");
+    set("lpSeen", (s.coins_seen || 0).toLocaleString());
+    set("lpTracked", `${s.tracked_now || 0} fresh now`);
+    set("lpGrad", (s.migrations || 0).toLocaleString());
+    set("lpSurfaced", s.surfaced || 0);
+    set("lpCreators", `${(s.creators_known || 0).toLocaleString()} creators known`);
+    set("lpSprayOpen", s.spray_open || 0);
+    set("lpSprayDeployed", `${fmtUsd(s.spray_deployed || 0, 0)} deployed`);
+    const pnl = document.getElementById("lpSprayPnl");
+    if (pnl) { pnl.textContent = (s.spray_unrealized >= 0 ? "+" : "") + fmtUsd(s.spray_unrealized || 0, 0);
+               pnl.className = "kpi-value " + cls(s.spray_unrealized || 0); }
+    set("lpSprayState", s.spray_enabled ? "spraying" : "off");
+    const tg = document.getElementById("sprayToggle");
+    if (tg) { tg.textContent = "Spray: " + (s.spray_enabled ? "ON" : "off");
+              tg.classList.toggle("active", !!s.spray_enabled); }
+    renderLpBoard(d.board || []);
+    renderLpSpray(d.spray_positions || []);
+    renderLpCreators(d.discovered || []);
+  }
+  function lpCreatorChip(b) {
+    const rec = b.creator_rec;
+    const t = rec ? `${rec.launches}🚀 ${rec.graduated}🎓 ${rec.hit_rate}%` : "new creator";
+    return `<span class="lp-creator wallet-link" data-wallet="${esc(b.creator)}" title="creator ${esc(b.creator)} · ${t}">🧑‍🚀 ${esc(b.creator_short)}${rec && (rec.graduated||rec.tractions) ? ` · ${rec.hit_rate}%` : ""}</span>`;
+  }
+  function renderLpBoard(board) {
+    const el = document.getElementById("lpBoard");
+    if (!el) return;
+    let rows = board.slice();
+    if (lpSurfacedOnly) rows = rows.filter((b) => b.moonshot >= 55);
+    if (!rows.length) {
+      el.innerHTML = `<div class="empty">${board.length ? "Nothing surfaced yet — loosen the filter." : "Waiting for the first launches…"}</div>`;
+      return;
+    }
+    el.innerHTML = rows.slice(0, 60).map((b) => {
+      const age = b.age_seconds < 90 ? `${Math.round(b.age_seconds)}s` : `${b.age_minutes}m`;
+      const m5 = b.price_change && b.price_change.m5 != null ? b.price_change.m5 : null;
+      const flags = (b.flags || []).map((f) => `<span class="tag-flag">${esc(f.replace(/_/g," "))}</span>`).join("");
+      const social = b.uri ? `<a class="lp-soc" href="${esc(b.uri)}" target="_blank" rel="noopener" title="metadata/socials">🔗</a>` : "";
+      const liq = b.liquidity_usd != null
+        ? `${fmtCompact(b.liquidity_usd)}${b.bonding_curve_liq ? "<small class='mut'> bc</small>" : ""}` : "—";
+      const sev = b.moonshot >= 70 ? "hot" : b.moonshot >= 55 ? "warm" : "cold";
+      return `<div class="lp-card sev-${sev}">
+        <div class="lp-top">
+          <div class="lp-id">
+            <a href="${esc(b.url)}" target="_blank" rel="noopener" class="lp-sym">${esc(b.symbol)}</a>
+            ${social}<span class="lp-age">${age}</span>
+            ${b.migrated ? '<span class="ok-tag">🎓</span>' : ""}
+            ${b.sprayed ? '<span class="lp-sprayed">sprayed</span>' : ""}
+            ${b.held ? '<span class="lp-held">held</span>' : ""}
+          </div>
+          <span class="badge ${esc(b.phase)} lp-phase">${esc(b.phase)}</span>
+        </div>
+        <div class="lp-score">${bar("opp", b.moonshot)}</div>
+        <div class="lp-stats">
+          <span title="price">${b.price_usd != null ? fmtPrice(b.price_usd) : "—"}</span>
+          <span title="liquidity">💧 ${liq}</span>
+          <span title="market cap">mc ${b.market_cap != null ? fmtCompact(b.market_cap) : "—"}</span>
+          <span title="1h volume">vol ${b.volume_h1 != null ? fmtCompact(b.volume_h1) : "—"}</span>
+          ${m5 != null ? `<span class="${cls(m5)}" title="5m change">${fmtPct(m5)}</span>` : ""}
+        </div>
+        ${(b.reasons||[]).length ? `<div class="lp-why">${esc(b.reasons.slice(0,2).join(" · "))}</div>` : ""}
+        ${flags ? `<div class="lp-flags">${flags}</div>` : ""}
+        <div class="lp-foot">
+          ${lpCreatorChip(b)}
+          <div class="lp-actions">
+            <a class="lp-chart-btn" href="${esc(b.url)}" target="_blank" rel="noopener" title="chart">📈</a>
+            ${b.live ? `<button class="lp-buy-btn" data-lpbuy="${esc(b.mint)}" data-sym="${esc(b.symbol)}">Buy</button>` : ""}
+          </div>
+        </div>
+      </div>`;
+    }).join("");
+  }
+  function renderLpSpray(list) {
+    const el = document.getElementById("lpSprayList");
+    if (!el) return;
+    document.getElementById("lpSprayHint").textContent = `${list.length} open · paper`;
+    if (!list.length) {
+      el.innerHTML = `<div class="empty">No spray bets open.${launchpadData?.stats?.spray_enabled ? " Waiting for a candidate ≥ score 70." : " Spray is off."}</div>`;
+      return;
+    }
+    el.innerHTML = list.map((p) => `
+      <div class="lp-bet ${cls(p.unrealized_pnl)}">
+        <div class="lp-bet-top"><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.symbol)}</a>
+          <span class="num ${cls(p.unrealized_pnl_pct)}">${fmtPct(p.unrealized_pnl_pct)}</span></div>
+        <div class="lp-bet-sub"><span class="mut">${fmtUsd(p.entry_value,0)} → ${fmtUsd(p.market_value,0)}</span>
+          <span class="mut">${held(p.hold_seconds)}</span></div>
+      </div>`).join("");
+  }
+  function renderLpCreators(list) {
+    const el = document.getElementById("lpCreatorsList");
+    if (!el) return;
+    if (!list.length) { el.innerHTML = `<div class="empty">Watching who launches coins that take off…</div>`; return; }
+    el.innerHTML = list.slice(0, 30).map((c) => `
+      <div class="lp-creator-row wallet-link" data-wallet="${esc(c.wallet)}">
+        <code class="mut">${esc(c.wallet_short)}</code>
+        <span class="lp-cr-stats">
+          <b>${c.launches}</b>🚀 <b class="up">${c.graduated}</b>🎓 <b>${c.tractions}</b>📈
+        </span>
+        <span class="num ${c.hit_rate>=50?'up':'mut'}">${c.hit_rate}%</span>
+      </div>`).join("");
+  }
+  async function doLaunchpadBuy(mint, sym) {
+    const usd = parseFloat(document.getElementById("lpBuyUsd").value) || 50;
+    lpMsg(`Buying ${sym}…`);
+    const r = await fetch("/api/trade/buy", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ address: mint, usd }) }).then((x) => x.json()).catch(() => null);
+    if (r && r.ok) { lpMsg(`✅ Bought ${sym} for ${fmtUsd(usd,0)} (manual)`, true); refreshNow(); }
+    else lpMsg("⚠️ " + ((r && r.error) || "Buy failed — coin may not be enriched yet; try again shortly."), false);
+  }
+
   // ================= MODAL / PROFILES =================
   let profileChart = null;
   let currentModal = null;
@@ -940,6 +1079,7 @@
 
   // ---------- tabs ----------
   const VIEW_TITLES = { overview: "Dashboard", trade: "Trade", specs: "Trade Specs",
+                        launchpad: "Launchpad — fresh pump.fun coins",
                         charts: "Live Charts", wallets: "Wallet intelligence",
                         influencers: "Influencer wallets" };
   function switchTab(name) {
@@ -950,6 +1090,7 @@
     if (vt) vt.textContent = VIEW_TITLES[name] || name;
     if (name === "trade") renderBuyOptions(board);
     if (name === "specs") { renderSpecStats(tradesData); applySpecFilters(); }
+    if (name === "launchpad") refreshLaunchpad();
     if (name === "charts") renderCoinList(document.getElementById("coinSearch").value);
     if (name === "wallets") refreshWalletsTab();
     if (name === "influencers") refreshInfluencers();
@@ -1002,6 +1143,19 @@
     const el = document.getElementById(id);
     if (el) el.addEventListener(id === "walletSearch" ? "input" : "change", applyWalletFilters);
   });
+  // launchpad controls
+  const sprayToggleBtn = document.getElementById("sprayToggle");
+  if (sprayToggleBtn) sprayToggleBtn.addEventListener("click", async () => {
+    const on = !(launchpadData && launchpadData.stats && launchpadData.stats.spray_enabled);
+    const r = await fetch("/api/control/spray", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ on }) }).then((x) => x.json()).catch(() => null);
+    if (r && r.ok) refreshLaunchpad();
+  });
+  const lpSurf = document.getElementById("lpSurfacedOnly");
+  if (lpSurf) lpSurf.addEventListener("change", (e) => {
+    lpSurfacedOnly = e.target.checked;
+    if (launchpadData) renderLpBoard(launchpadData.board || []);
+  });
 
   // ---------- websocket ----------
   function setConn(state) {
@@ -1023,6 +1177,7 @@
           applySnapshot(msg.data); refreshAux();
           if (activeTab === "wallets") refreshWalletsTab();
           if (activeTab === "influencers") refreshInfluencers();
+          if (activeTab === "launchpad") refreshLaunchpad();
         }
       } catch (e) {}
     };
@@ -1061,6 +1216,8 @@
       if (gotoEl) { switchTab(gotoEl.dataset.goto); return; }
       const copyEl = e.target.closest("[data-copy]");
       if (copyEl) { if (navigator.clipboard) navigator.clipboard.writeText(copyEl.dataset.copy); return; }
+      const lpBuyEl = e.target.closest("[data-lpbuy]");
+      if (lpBuyEl) { e.stopPropagation(); doLaunchpadBuy(lpBuyEl.dataset.lpbuy, lpBuyEl.dataset.sym); return; }
       const tradeEl = e.target.closest("[data-trade]");
       if (tradeEl && !e.target.closest("[data-wallet]")) { openTradeProfile(tradeEl.dataset.trade); return; }
       const w = e.target.closest("[data-wallet]");

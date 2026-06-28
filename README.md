@@ -164,6 +164,34 @@ signals feed.
 Open positions and the opportunity scanner live on the **Trade** tab; closed
 trades and their profiles on the **Trade Specs** tab.
 
+### 🚀 Launchpad
+**Catch pump.fun coins in their first minutes.** A live websocket
+([PumpPortal](https://pumpportal.fun), free) streams *every* new pump.fun launch
+and every graduation; each fresh coin is enriched with live DexScreener data
+(which covers new mints within seconds) and scored with a **moonshot score** —
+early buy velocity, buy/sell pressure, price impulse and forming liquidity,
+*minus* dev-rug and distribution signals. The board is a live grid of fresh coins
+(age in seconds, score, market cap, liquidity, 5m change, creator) you can buy
+into with one click.
+
+- **Real auto-discovered wallets.** Creator wallets are tracked across launches:
+  how many coins they've shipped, how many gained traction or **graduated**, and
+  their hit-rate. Serial ruggers and serial winners both surface over time. This
+  is **real, free** on-chain wallet intelligence. *(A funded `PUMPPORTAL_API_KEY`
+  additionally unlocks the per-trade buyer stream for real **per-buyer**
+  discovery; without it you still get per-creator discovery.)*
+- **💸 Spray mode** (opt-in): *"put a small amount in each — it either explodes or
+  goes to zero."* Sprays a tiny capped paper bet ($25 by default) across the
+  strongest fresh candidates, then runs a fast exit ladder: bank at a big
+  multiple (3×), hard stop (−55%), or bail if it stalls. All paper, capped
+  (max positions + max total), and every bet is tagged so it shows up with its
+  reasoning in **Trade Specs**. Toggle it from the tab; tune it in `config.yaml`.
+
+> Liquidity note: DexScreener often reports `$0` liquidity for a coin in its
+> first minutes (not yet indexed), so the score floors liquidity with the coin's
+> **bonding-curve SOL reserve** — a streaming pump.fun coin always has a real,
+> tradeable market.
+
 ### 📈 Live Charts
 Every scanned coin gets a **profile** (full DexScreener stats — price, all
 change/volume windows, txns, liquidity/mcap/FDV, age, rug-authority status —
@@ -216,6 +244,9 @@ portfolio back to $10,000.
 | Paper fills, fees, slippage, P&L, equity curve | **Real** simulation against live prices. |
 | Whale-holder **concentration** | **Real** with `HELIUS_API_KEY` (`getTokenLargestAccounts`); otherwise estimated from market structure. |
 | Per-wallet **buy/sell events** (the named whale/insider wallets) | **Simulated** — a stable per-token roster whose actions are driven by the token's *real* buy/sell pressure and price action. Clearly labelled `simulated` in the UI. Live per-swap attribution needs a streaming indexer (a planned v2). |
+| **Launchpad** — new pump.fun coins, creators, graduations | **Real** — live PumpPortal websocket (free) + DexScreener enrichment. Moonshot scoring and **creator** wallet discovery are real. |
+| Launchpad **per-buyer** wallet discovery | **Real with a funded `PUMPPORTAL_API_KEY`** (per-trade stream); otherwise discovery is per-creator. |
+| Spray-mode fills & P&L | **Real** simulation against live prices (paper). |
 
 The point: market signals and trade simulation are real; the individual wallet
 *identities* are synthesised (and labelled as such) so the coordinated-sell
@@ -247,9 +278,11 @@ app/
   data/
     dexscreener.py         # live Solana market data
     wallets.py             # Helius (real) + simulated wallet providers
+    pumpportal.py          # live pump.fun new-coin/migration stream + creators
   engine/
     detector.py            # pump/dump/safety scoring (pure, tested)
     wallet_intel.py        # whale/insider aggregation + coordinated-sell
+    launchpad.py           # moonshot scoring + spray bets (pure score, tested)
     strategy.py            # entry gating + exit ladder (pure, tested)
     paper_trader.py        # $10k book, fills, P&L, equity curve
     scanner.py             # the loop that ties it together

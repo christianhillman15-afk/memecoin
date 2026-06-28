@@ -22,10 +22,12 @@ from ..config import Config
 from ..database import Database
 from ..data.dexscreener import DexScreenerClient
 from ..data.onchain import OnchainSafety
+from ..data.pumpportal import PumpPortalIngester
 from ..data.wallets import build_wallet_provider
 from ..models import DetectionResult, Signal, TokenIntel, TokenSnapshot
 from .detector import detect
 from .influencers import InfluencerTracker
+from .launchpad import LaunchpadEngine
 from .paper_trader import PaperTrader
 from .strategy import evaluate_entry, evaluate_exit, update_trailing
 from .wallet_intel import WalletIntel
@@ -43,6 +45,10 @@ class Scanner:
         self.intel = WalletIntel(cfg)
         self.influencers = InfluencerTracker(cfg)
         self.trader = PaperTrader(cfg, db)
+        # launchpad: live pump.fun firehose + moonshot scoring + spray
+        self.pumpportal = PumpPortalIngester(cfg)
+        self.launchpad = LaunchpadEngine(cfg, self.dex, self.pumpportal,
+                                         self.trader, self._emit)
 
         self.running = False
         self.paused = not cfg.auto_trade
@@ -82,10 +88,12 @@ class Scanner:
         if self._task and not self._task.done():
             return
         self.running = True
+        self.pumpportal.start()        # live pump.fun stream (background)
         self._task = asyncio.create_task(self._loop())
 
     async def stop(self) -> None:
         self.running = False
+        await self.pumpportal.stop()
         if self._task:
             self._task.cancel()
             try:
@@ -177,6 +185,15 @@ class Scanner:
         self.intel.record_careers()
         self._emit_bundle_signals()
 
+        # launchpad: score brand-new pump.fun coins + run spray bets, then make
+        # those fresh coins buyable from the dashboard
+        try:
+            await self.launchpad.refresh()
+            for mint, lsnap in self.launchpad.snaps.items():
+                self.snap_by_addr.setdefault(mint, lsnap)
+        except Exception as e:  # noqa: BLE001 — never let the launchpad kill a scan
+            log.warning("launchpad refresh failed: %s", e)
+
         # update influencer wallet activity against the live universe
         self.influencers.update(snapshots, self.scan_count)
 
@@ -227,6 +244,8 @@ class Scanner:
         intel_by_addr = {b["token"]["address"]: b["intel"] for b in board}
         for addr in list(self.trader.positions.keys()):
             pos = self.trader.positions[addr]
+            if self.trader.is_spray(pos):
+                continue  # spray bets run the launchpad's own fast exit ladder
             snap = snaps.get(addr)
             price = snap.price_usd if snap else pos.last_price
             self.trader.mark(addr, price)
@@ -386,5 +405,9 @@ class Scanner:
                 "last_error": self.last_error,
                 "chain": self.cfg.chain,
                 "wallet_provider": "helius" if self.cfg.has_wallet_provider else "simulated",
+                "launchpad": self.pumpportal.connected,
             },
         }
+
+    def launchpad_snapshot(self) -> dict[str, Any]:
+        return self.launchpad.snapshot()
