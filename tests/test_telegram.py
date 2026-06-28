@@ -26,16 +26,19 @@ def test_telegram_enabled_requires_token_and_ids():
     assert c.telegram_enabled
 
 
-def test_admin_defaults_to_readers_and_is_subset(monkeypatch):
+def test_admin_does_not_fail_open(monkeypatch):
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "tok")
+    # multiple readers + no explicit admin => controls LOCKED (not all readers)
     monkeypatch.setenv("TELEGRAM_CHAT_IDS", "10,20")
     monkeypatch.setenv("TELEGRAM_ADMIN_CHAT_IDS", "")
-    c = load_config()
-    assert c.telegram_admin_chat_ids == frozenset({10, 20})  # defaults to readers
-    # admins intersected with readers (cannot be admin without read access)
+    assert load_config().telegram_admin_chat_ids == frozenset()
+    # single reader + no explicit admin => auto-promote that one
+    monkeypatch.setenv("TELEGRAM_CHAT_IDS", "10")
+    assert load_config().telegram_admin_chat_ids == frozenset({10})
+    # explicit admins are intersected with readers (no admin without read access)
+    monkeypatch.setenv("TELEGRAM_CHAT_IDS", "10,20")
     monkeypatch.setenv("TELEGRAM_ADMIN_CHAT_IDS", "20,999")
-    c = load_config()
-    assert c.telegram_admin_chat_ids == frozenset({20})
+    assert load_config().telegram_admin_chat_ids == frozenset({20})
 
 
 def test_secrets_not_in_public_dict():

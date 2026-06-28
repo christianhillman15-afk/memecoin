@@ -1,6 +1,7 @@
 """Configuration loading: YAML file + environment overrides for secrets."""
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass, field, fields
 from pathlib import Path
@@ -8,6 +9,7 @@ from typing import Any
 
 import yaml
 
+log = logging.getLogger("memeradar.config")
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = ROOT / "config.yaml"
 
@@ -147,10 +149,29 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
     cfg.telegram_reset_token = os.environ.get("TELEGRAM_RESET_TOKEN", cfg.telegram_reset_token)
     cfg.telegram_chat_ids = _parse_ids(os.environ.get("TELEGRAM_CHAT_IDS", ""))
     admin = _parse_ids(os.environ.get("TELEGRAM_ADMIN_CHAT_IDS", ""))
-    # admins must also be readers; default admin set to the read set when unset
-    cfg.telegram_admin_chat_ids = (
-        (admin & cfg.telegram_chat_ids) if admin else cfg.telegram_chat_ids)
+    cfg.telegram_admin_chat_ids = _resolve_admins(admin, cfg.telegram_chat_ids)
     return cfg
+
+
+def _resolve_admins(admin: frozenset, readers: frozenset) -> frozenset:
+    """Decide who may run destructive control commands.
+
+    Admins must also be readers. We do NOT fail open: leaving the admin list
+    empty must not silently grant every reader destructive control.
+      * explicit admins  -> intersect with readers
+      * unset + 1 reader -> auto-promote that sole reader (the common case)
+      * unset + N readers -> no admins until explicitly set (controls locked)
+    """
+    if admin:
+        return admin & readers
+    if len(readers) == 1:
+        log.warning("TELEGRAM_ADMIN_CHAT_IDS unset; auto-promoting the sole "
+                    "reader to admin. Set it explicitly to be safe.")
+        return readers
+    if readers:
+        log.warning("TELEGRAM_ADMIN_CHAT_IDS unset with %d readers; control "
+                    "commands are DISABLED until you set it.", len(readers))
+    return frozenset()
 
 
 def _parse_ids(raw: str) -> frozenset:

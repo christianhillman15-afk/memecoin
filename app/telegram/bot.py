@@ -39,6 +39,7 @@ class TelegramBot:
         self._stopped = False
         self._poll_task: asyncio.Task | None = None
         self._dispatch_task: asyncio.Task | None = None
+        self._bg_tasks: set[asyncio.Task] = set()  # manual /scan etc.
         self._queue: asyncio.Queue[Signal] = asyncio.Queue(maxsize=256)
         self._suppressed = 0
         self._rate = alert_mod.AlertRateState(
@@ -69,10 +70,11 @@ class TelegramBot:
 
     async def stop(self) -> None:
         self._stopped = True
-        for task in (self._poll_task, self._dispatch_task):
+        tasks = [self._poll_task, self._dispatch_task, *self._bg_tasks]
+        for task in tasks:
             if task:
                 task.cancel()
-        for task in (self._poll_task, self._dispatch_task):
+        for task in tasks:
             if task:
                 try:
                     await task
@@ -200,12 +202,16 @@ class TelegramBot:
                 await self._send_chunk(chat_id, text, silent, _retry=False)
             elif e.status == 400 and "parse" in e.description.lower() and _retry:
                 # entity parse failure — resend as plain text so nothing is lost
+                # (bounded timeout + preserves the silent flag)
                 try:
-                    await self.api._call("sendMessage", {
-                        "chat_id": chat_id, "text": text,
-                        "disable_web_page_preview": True})
+                    await self.api.send_message(chat_id, text, parse_mode=None,
+                                                silent=silent)
                 except TelegramAPIError as e2:
                     log.warning("send fallback failed (%s): %s", chat_id, e2)
+            elif e.status == 0 and _retry:
+                # transient transport/network error — one short bounded retry
+                await asyncio.sleep(1.0)
+                await self._send_chunk(chat_id, text, silent, _retry=False)
             else:
                 log.warning("send to %s failed: %s", chat_id, e)
 
@@ -240,7 +246,7 @@ class TelegramBot:
             if verb == "help":
                 await self._send(chat_id, self._help_text(is_admin))
             elif verb == "alerts":
-                await self._send(chat_id, self._cmd_alerts(args))
+                await self._send(chat_id, self._cmd_alerts(args, is_admin))
             elif verb in CONTROL_COMMANDS:
                 if not is_admin:
                     await self._send(chat_id, "⛔ Admin only.")
@@ -291,7 +297,7 @@ class TelegramBot:
         return "\n".join(lines)
 
     # ---------------- /alerts ---------------- #
-    def _cmd_alerts(self, args: list[str]) -> str:
+    def _cmd_alerts(self, args: list[str], is_admin: bool = False) -> str:
         if not args:
             mutes = ", ".join(sorted(self._active_mutes())) or "none"
             return ("<b>🔔 Alerts</b>\n"
@@ -301,6 +307,9 @@ class TelegramBot:
                     f"muted: {h(mutes)}\n"
                     "<i>/alerts on|off · /alerts &lt;kind&gt; on|off · "
                     "/alerts mute &lt;SYM&gt; [min] · /alerts unmute &lt;SYM&gt;</i>")
+        # changing alert state affects every recipient — admin only
+        if not is_admin:
+            return "⛔ Admin only (changing alerts affects all recipients)."
         sub = args[0].lower()
         if sub in ("on", "off"):
             self.cfg.telegram_alerts = (sub == "on")
@@ -345,10 +354,20 @@ class TelegramBot:
                 await self._send(chat_id, "A scan is already in progress.")
                 return
             await self._send(chat_id, "🔄 Scanning…")
-            await self.scanner.scan_once()
-            await self._send(chat_id, f"✅ Done — scan #{self.scanner.scan_count}.")
+            # run off the poll-loop task so polling/commands stay responsive
+            task = asyncio.create_task(self._run_manual_scan(chat_id))
+            self._bg_tasks.add(task)
+            task.add_done_callback(self._bg_tasks.discard)
         elif verb == "reset":
             await self._handle_reset(chat_id, args)
+
+    async def _run_manual_scan(self, chat_id: int) -> None:
+        try:
+            await self.scanner.scan_once()
+            await self._send(chat_id, f"✅ Done — scan #{self.scanner.scan_count}.")
+        except Exception:  # noqa: BLE001
+            log.exception("manual scan failed")
+            await self._send(chat_id, "⚠️ Scan failed.")
 
     async def _handle_reset(self, chat_id: int, args: list[str]) -> None:
         configured = self.cfg.telegram_reset_token

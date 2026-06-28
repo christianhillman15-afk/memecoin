@@ -46,11 +46,15 @@ class TelegramAPI:
 
     async def _call(self, method: str, payload: dict[str, Any] | None = None,
                     read_timeout: float | None = None) -> Any:
+        # ALWAYS bounded: a non-poll call (read_timeout None) gets a 20s read,
+        # getUpdates passes its long-poll window. Never pass timeout=None (that
+        # would DISABLE httpx timeouts and a stalled send could hang forever).
+        timeout = httpx.Timeout(
+            connect=10.0, read=20.0 if read_timeout is None else read_timeout,
+            write=10.0, pool=10.0)
         try:
             r = await self._client.post(
-                f"{self._base}/{method}", json=payload or {},
-                timeout=read_timeout if read_timeout is None else
-                httpx.Timeout(connect=10.0, read=read_timeout, write=10.0, pool=10.0))
+                f"{self._base}/{method}", json=payload or {}, timeout=timeout)
         except httpx.HTTPError as e:
             raise TelegramAPIError(0, f"transport error: {e}") from e
         try:
@@ -79,11 +83,12 @@ class TelegramAPI:
         # allow the server's long-poll to run the full window before our read trips
         return await self._call("getUpdates", payload, read_timeout=timeout + 10.0) or []
 
-    async def send_message(self, chat_id: int, text: str, parse_mode: str = "HTML",
+    async def send_message(self, chat_id: int, text: str, parse_mode: str | None = "HTML",
                            disable_preview: bool = True,
                            silent: bool = False) -> Any:
-        return await self._call("sendMessage", {
-            "chat_id": chat_id, "text": text, "parse_mode": parse_mode,
-            "disable_web_page_preview": disable_preview,
-            "disable_notification": silent,
-        })
+        payload = {"chat_id": chat_id, "text": text,
+                   "disable_web_page_preview": disable_preview,
+                   "disable_notification": silent}
+        if parse_mode:  # omit for the plain-text fallback
+            payload["parse_mode"] = parse_mode
+        return await self._call("sendMessage", payload)

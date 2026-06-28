@@ -72,6 +72,9 @@ class AlertRateState:
     _bucket_ts: float = field(default_factory=time.time)
 
     def __post_init__(self) -> None:
+        # never 0/negative — that would make take_token() never refill and the
+        # dispatcher busy-wait forever
+        self.max_per_minute = max(1, int(self.max_per_minute))
         if self._bucket < 0:
             self._bucket = float(self.max_per_minute)
 
