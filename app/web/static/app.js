@@ -170,8 +170,8 @@
       tb.innerHTML = `<tr><td colspan="4" class="empty">Discovering wallets…</td></tr>`; return;
     }
     tb.innerHTML = wallets.map((w) => `
-      <tr>
-        <td><code class="mut wallet-link" data-wallet="${esc(w.wallet)}">${esc(w.wallet_short)}</code><br><small class="mut">${esc((w.tokens||[]).slice(0,3).join(" "))}</small></td>
+      <tr class="wallet-link" data-wallet="${esc(w.wallet)}">
+        <td><code class="mut">${esc(w.wallet_short)}</code><br><small class="mut">${esc((w.tokens||[]).slice(0,3).join(" "))}</small></td>
         <td><span class="badge ${esc(w.kind)}">${esc(w.kind.replace("_"," "))}</span></td>
         <td class="num ${cls(w.net_usd)}">${fmtCompact(w.net_usd)}</td>
         <td class="num mut">${w.events}</td>
@@ -280,7 +280,10 @@
   }
 
   // ================= WALLETS TAB =================
-  function walletRow(cols) { return `<tr>${cols.join("")}</tr>`; }
+  // whole row is clickable (not just the address chip)
+  function walletRow(wallet, cols) {
+    return `<tr class="wallet-link" data-wallet="${esc(wallet)}">${cols.join("")}</tr>`;
+  }
   function renderCategorized(d) {
     const counts = d.counts || {};
     document.getElementById("walletCounts").innerHTML =
@@ -300,20 +303,20 @@
       tb.innerHTML = rows && rows.length ? rows.map(builder).join("")
         : `<tr><td colspan="5" class="empty">none yet</td></tr>`;
     };
-    fill("tb-whales", d.whales, (w) => walletRow([
+    fill("tb-whales", d.whales, (w) => walletRow(w.wallet, [
       `<td>${code(w)}</td>`, `<td class="num mut">${w.win_rate}%</td>`,
       `<td class="num ${cls(w.net_usd)}">${fmtCompact(w.net_usd)}</td>`,
       `<td class="num mut">${fmtCompact(w.buy_usd + w.sell_usd)}</td>`,
       `<td class="num mut">${w.token_count}</td>`]));
-    fill("tb-insiders", d.insiders, (w) => walletRow([
+    fill("tb-insiders", d.insiders, (w) => walletRow(w.wallet, [
       `<td>${code(w)}</td>`, `<td class="num mut">${w.win_rate}%</td>`,
       `<td class="num ${cls(w.net_usd)}">${fmtCompact(w.net_usd)}</td>`,
       `<td class="num mut">${w.token_count}</td>`, `<td class="num mut">${w.events}</td>`]));
-    fill("tb-smart_money", d.smart_money, (w) => walletRow([
+    fill("tb-smart_money", d.smart_money, (w) => walletRow(w.wallet, [
       `<td>${code(w)}</td>`, `<td class="num up">${w.win_rate}%</td>`,
       `<td class="num ${cls(w.net_usd)}">${fmtCompact(w.net_usd)}</td>`,
       `<td class="num mut">${w.token_count}</td>`, `<td class="num mut">${w.events}</td>`]));
-    fill("tb-pump_dumpers", d.pump_dumpers, (w) => walletRow([
+    fill("tb-pump_dumpers", d.pump_dumpers, (w) => walletRow(w.wallet, [
       `<td>${code(w)}</td>`, `<td class="num down">${w.dump_hits}</td>`,
       `<td class="num neg">${fmtCompact(w.sell_usd)}</td>`,
       `<td class="num ${cls(w.net_usd)}">${fmtCompact(w.net_usd)}</td>`,

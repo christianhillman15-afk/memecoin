@@ -24,6 +24,16 @@ from .telegram import build_telegram_bot
 STATIC_DIR = Path(__file__).resolve().parent / "web" / "static"
 
 
+class NoCacheStaticFiles(StaticFiles):
+    """Serve static assets with revalidation so a rebuild is picked up
+    immediately instead of the browser running a stale cached app.js."""
+
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+        return response
+
+
 class ConnectionManager:
     def __init__(self) -> None:
         self.active: set[WebSocket] = set()
@@ -117,7 +127,8 @@ def create_app() -> FastAPI:
     # ---- pages ---------------------------------------------------------- #
     @app.get("/")
     async def index() -> FileResponse:
-        return FileResponse(STATIC_DIR / "index.html")
+        return FileResponse(STATIC_DIR / "index.html",
+                            headers={"Cache-Control": "no-cache, must-revalidate"})
 
     # ---- REST ----------------------------------------------------------- #
     @app.get("/api/snapshot")
@@ -212,7 +223,7 @@ def create_app() -> FastAPI:
             manager.disconnect(ws)
 
     # static assets (js/css) — mounted last so "/" stays our index
-    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+    app.mount("/static", NoCacheStaticFiles(directory=str(STATIC_DIR)), name="static")
     return app
 
 
