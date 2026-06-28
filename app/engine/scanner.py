@@ -52,8 +52,13 @@ class Scanner:
         # latest analysed universe (token -> bundle) for the dashboard
         self.board: list[dict[str, Any]] = []
         self._task: Optional[asyncio.Task] = None
+        self._scan_lock = asyncio.Lock()  # serialises loop + manual /scan
         self._on_update: list[Callable[[], None]] = []
         self._on_signal: list[Callable[[Signal], None]] = []
+
+    @property
+    def is_scanning(self) -> bool:
+        return self._scan_lock.locked()
 
     def on_update(self, cb: Callable[[], None]) -> None:
         self._on_update.append(cb)
@@ -110,6 +115,12 @@ class Scanner:
 
     # --- one scan cycle --------------------------------------------------- #
     async def scan_once(self) -> None:
+        # serialise with the background loop and any manual /scan to avoid
+        # overlapping scans stacking double trades
+        async with self._scan_lock:
+            await self._scan_once_impl()
+
+    async def _scan_once_impl(self) -> None:
         addresses = await self.dex.discover_token_addresses(self.cfg.universe_size)
 
         # always include tokens we currently hold (so we can manage exits)

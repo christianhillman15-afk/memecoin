@@ -58,6 +58,7 @@ class BasicAuthMiddleware:
 from .config import load_config
 from .database import Database
 from .engine.scanner import Scanner
+from .telegram import build_telegram_bot
 
 STATIC_DIR = Path(__file__).resolve().parent / "web" / "static"
 
@@ -102,7 +103,21 @@ def create_app() -> FastAPI:
                                                    "data": scanner.snapshot()}))
         scanner.on_update(_push)
         scanner.start()
+        # optional Telegram bot — only built when a token + allowlist are set;
+        # a Telegram failure must never block app startup or scanner shutdown
+        bot = build_telegram_bot(cfg, scanner, db)
+        app.state.telegram = bot
+        if bot:
+            try:
+                await bot.start()
+            except Exception:  # noqa: BLE001
+                logging.getLogger("memeradar.telegram").exception("Telegram start failed")
         yield
+        if bot:
+            try:
+                await bot.stop()
+            except Exception:  # noqa: BLE001
+                pass
         await scanner.stop()
         db.close()
 

@@ -49,6 +49,20 @@ safety_check_authority: true       # fetch mint/freeze authority for each token
 block_unrenounced_authority: true  # refuse to buy if mint/freeze authority is live
                                    # (dev can mint infinite supply / freeze wallets)
 
+# --- Telegram alerts (tuning; token/chat-ids live in .env) -------------------
+telegram_alerts: true                 # master push-alert switch
+telegram_alert_min_severity: success  # info | success | warning | critical
+                                      # (info = high-frequency entries, off by default)
+telegram_alert_kinds:                 # which signal kinds push by default
+  - dump
+  - multi_sell
+  - whale_buy
+  - exit
+telegram_alert_cooldown_seconds: 900  # per-(kind,token) dedupe window
+telegram_alert_batch_seconds: 8       # coalesce bursts into one message
+telegram_alert_max_per_minute: 12     # outbound alert rate cap
+telegram_poll_timeout_seconds: 25     # getUpdates long-poll timeout
+
 # --- Engine ------------------------------------------------------------------
 auto_trade: true              # let the strategy open/close paper positions
 log_level: INFO

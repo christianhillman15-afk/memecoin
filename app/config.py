@@ -59,6 +59,16 @@ class Config:
     safety_check_authority: bool = True       # fetch mint/freeze authority status
     block_unrenounced_authority: bool = True  # refuse to buy if mint/freeze is live
 
+    # telegram bot — YAML-tunable alert knobs (secrets/ids come from env below)
+    telegram_alerts: bool = True              # master push-alert switch
+    telegram_alert_min_severity: str = "success"   # info|success|warning|critical
+    telegram_alert_kinds: list = field(
+        default_factory=lambda: ["dump", "multi_sell", "whale_buy", "exit"])
+    telegram_alert_cooldown_seconds: int = 900     # per-(kind,token) dedupe window
+    telegram_alert_batch_seconds: int = 8          # coalesce alerts in this window
+    telegram_alert_max_per_minute: int = 12        # outbound alert rate cap
+    telegram_poll_timeout_seconds: int = 25        # getUpdates long-poll timeout
+
     # engine
     auto_trade: bool = True
     log_level: str = "INFO"
@@ -72,6 +82,11 @@ class Config:
     # dashboard login (HTTP basic auth) — enabled only when a password is set
     dashboard_user: str = "admin"
     dashboard_password: str = field(default="", repr=False)
+    # telegram bot — env-only secrets / allowlists (empty => bot disabled)
+    telegram_bot_token: str = field(default="", repr=False)
+    telegram_chat_ids: frozenset = field(default_factory=frozenset)
+    telegram_admin_chat_ids: frozenset = field(default_factory=frozenset)
+    telegram_reset_token: str = field(default="", repr=False)
 
     @property
     def has_wallet_provider(self) -> bool:
@@ -81,17 +96,26 @@ class Config:
     def auth_enabled(self) -> bool:
         return bool(self.dashboard_password)
 
+    @property
+    def telegram_enabled(self) -> bool:
+        # only when a token AND at least one allowed read chat id are configured
+        return bool(self.telegram_bot_token and self.telegram_chat_ids)
+
     def public_dict(self) -> dict[str, Any]:
         """Config safe to expose to the dashboard (no secrets)."""
         out: dict[str, Any] = {}
         secret = {"helius_api_key", "birdeye_api_key", "db_path",
-                  "dashboard_password", "dashboard_user"}
+                  "dashboard_password", "dashboard_user",
+                  # never leak who can read/control the desk, or the tokens
+                  "telegram_bot_token", "telegram_reset_token",
+                  "telegram_chat_ids", "telegram_admin_chat_ids"}
         for f in fields(self):
             if f.name in secret:
                 continue
             out[f.name] = getattr(self, f.name)
         out["wallet_provider"] = "helius" if self.has_wallet_provider else "simulated"
         out["auth_enabled"] = self.auth_enabled
+        out["telegram_enabled"] = self.telegram_enabled
         return out
 
 
@@ -117,4 +141,30 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
         cfg.db_path = os.environ["MEMEBOT_DB"]
     cfg.dashboard_user = os.environ.get("DASHBOARD_USER", cfg.dashboard_user)
     cfg.dashboard_password = os.environ.get("DASHBOARD_PASSWORD", cfg.dashboard_password)
+
+    # telegram (env-only secrets + allowlists)
+    cfg.telegram_bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", cfg.telegram_bot_token)
+    cfg.telegram_reset_token = os.environ.get("TELEGRAM_RESET_TOKEN", cfg.telegram_reset_token)
+    cfg.telegram_chat_ids = _parse_ids(os.environ.get("TELEGRAM_CHAT_IDS", ""))
+    admin = _parse_ids(os.environ.get("TELEGRAM_ADMIN_CHAT_IDS", ""))
+    # admins must also be readers; default admin set to the read set when unset
+    cfg.telegram_admin_chat_ids = (
+        (admin & cfg.telegram_chat_ids) if admin else cfg.telegram_chat_ids)
     return cfg
+
+
+def _parse_ids(raw: str) -> frozenset:
+    """Parse a comma-separated list of numeric chat ids into a frozenset[int].
+
+    Tolerates whitespace and empty entries; silently drops non-numeric tokens
+    (a str-vs-int mismatch would otherwise deny everyone)."""
+    out: set[int] = set()
+    for part in (raw or "").replace(";", ",").split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            out.add(int(part))
+        except ValueError:
+            continue
+    return frozenset(out)
