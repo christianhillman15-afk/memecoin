@@ -150,8 +150,18 @@ only price charts the app uses — straight from DexScreener.
 Tracked wallets organised into categories: **🐋 Whales** (biggest size),
 **🕵️ Insiders** (early buyers), **🧠 Smart money** (high win-rate & profitable),
 **💣 Pump & dump** (serial coordinated dumpers), and **👥 Cabal groups** —
-clusters of wallets that repeatedly dump the *same* coins together (found via
-co-dump clustering).
+clusters of wallets that repeatedly trade the *same* coins together.
+
+- **🚀 Fresh loadouts** (top of the tab): young coins where a *strong team* of
+  good wallets is accumulating early — the bullish, forward-looking inverse of
+  the dump detector. Each shows a loadout score, the team, and the cabal behind
+  it. Recency-ranked so it stays current.
+- **Click any wallet** anywhere → a **profile** with holdings, PnL, win rate,
+  and a modelled "career" equity chart. **Click any cabal** → a profile with
+  members, combined stats, what they're *currently loading*, and their track
+  record. *(PnL/holdings/career are modelled from market pressure and clearly
+  labelled — real per-wallet trade history needs a paid indexer; current SPL
+  holdings can be made real with a Helius key.)*
 
 ### 📣 Influencers
 A curated watchlist of X/Twitter influencers / KOLs and their wallets, with what

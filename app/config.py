@@ -57,6 +57,11 @@ class Config:
     multi_sell_min_wallets: int = 3
     multi_sell_min_usd: float = 15000
 
+    # fresh loadouts (young coins a strong team is accumulating)
+    loadout_max_age_minutes: int = 1440   # "new" = launched within ~24h
+    loadout_min_score: float = 45
+    loadout_ttl_seconds: int = 240
+
     # on-chain rug safety (free via the Solana RPC)
     safety_check_authority: bool = True       # fetch mint/freeze authority status
     block_unrenounced_authority: bool = True  # refuse to buy if mint/freeze is live

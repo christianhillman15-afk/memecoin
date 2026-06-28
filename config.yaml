@@ -44,6 +44,11 @@ multi_sell_window_seconds: 240 # window for clustering coordinated sells
 multi_sell_min_wallets: 3     # only act when >= this many smart wallets dump
 multi_sell_min_usd: 15000     # ...and the combined size is meaningful
 
+# --- Fresh loadouts (young coins a strong team is accumulating) ---------------
+loadout_max_age_minutes: 1440  # "fresh" = launched within ~24h (1440 min)
+loadout_min_score: 45          # 0-100; minimum loadout score to surface a coin
+loadout_ttl_seconds: 240       # drop a loadout if not re-confirmed within this
+
 # --- On-chain rug safety (free via the Solana RPC) ---------------------------
 safety_check_authority: true       # fetch mint/freeze authority for each token
 block_unrenounced_authority: true  # refuse to buy if mint/freeze authority is live

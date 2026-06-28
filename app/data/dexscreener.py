@@ -60,13 +60,16 @@ class DexScreenerClient:
 
     # --- discovery -------------------------------------------------------- #
     async def discover_token_addresses(self, limit: int = 45) -> list[str]:
-        """Trending memecoins via the boosts feeds, filtered to our chain."""
-        top, latest = await asyncio.gather(
+        """Discover memecoins to scan: trending (boosts) + freshly-listed
+        (latest token profiles), filtered to our chain. The fresh feed feeds
+        young coins to the loadout detector."""
+        top, boosted, fresh = await asyncio.gather(
             self._get("/token-boosts/top/v1"),
             self._get("/token-boosts/latest/v1"),
+            self._get("/token-profiles/latest/v1"),
         )
         seen: list[str] = []
-        for feed in (top or [], latest or []):
+        for feed in (top or [], boosted or [], fresh or []):
             for item in feed:
                 if item.get("chainId") != self.chain:
                     continue

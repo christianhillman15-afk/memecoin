@@ -171,7 +171,7 @@
     }
     tb.innerHTML = wallets.map((w) => `
       <tr>
-        <td><code class="mut">${esc(w.wallet_short)}</code><br><small class="mut">${esc((w.tokens||[]).slice(0,3).join(" "))}</small></td>
+        <td><code class="mut wallet-link" data-wallet="${esc(w.wallet)}">${esc(w.wallet_short)}</code><br><small class="mut">${esc((w.tokens||[]).slice(0,3).join(" "))}</small></td>
         <td><span class="badge ${esc(w.kind)}">${esc(w.kind.replace("_"," "))}</span></td>
         <td class="num ${cls(w.net_usd)}">${fmtCompact(w.net_usd)}</td>
         <td class="num mut">${w.events}</td>
@@ -235,6 +235,7 @@
   // ---------- status ----------
   function renderStatus(st) {
     chain = st.chain || chain;
+    if (st.scan_count !== cacheScan) { profileCache.clear(); cacheScan = st.scan_count; }
     document.getElementById("provider").textContent = "provider: " + (st.wallet_provider || "—");
     document.getElementById("footProvider").textContent = `${st.chain} · ${st.wallet_provider} wallet feed`;
     document.getElementById("scanInfo").textContent = `scan #${st.scan_count}` + (st.last_error ? " · err" : "");
@@ -292,7 +293,7 @@
     setN("n-whales", counts.whales); setN("n-insiders", counts.insiders);
     setN("n-smart_money", counts.smart_money); setN("n-pump_dumpers", counts.pump_dumpers);
 
-    const code = (w) => `<code title="${esc(w.wallet)}">${esc(w.wallet_short)}</code>`;
+    const code = (w) => `<code class="wallet-link" data-wallet="${esc(w.wallet)}" title="${esc(w.wallet)}">${esc(w.wallet_short)}</code>`;
     const fill = (id, rows, builder) => {
       const tb = document.getElementById(id);
       if (!tb) return;
@@ -326,13 +327,13 @@
     }
     el.innerHTML = cabals.map((c) => `
       <div class="cabal-card">
-        <div class="ch"><span class="cid">${esc(c.id)}</span><span class="csz">${c.size} wallets</span></div>
+        <div class="ch"><span class="cid cabal-link" data-cabal="${esc(c.id)}">${esc(c.id)} ›</span><span class="csz">${c.size} wallets</span></div>
         <div class="cabal-stats">
           <div class="cs"><b>${fmtCompact(c.sell_usd)}</b><span>dumped</span></div>
           <div class="cs"><b>${c.dump_hits}</b><span>co-dumps</span></div>
           <div class="cs"><b>${c.token_count}</b><span>coins</span></div>
         </div>
-        <div class="cabal-members">${c.members.map((m) => `<code title="${esc(m.wallet)}">${esc(m.wallet_short)}</code>`).join("")}</div>
+        <div class="cabal-members">${c.members.map((m) => `<code class="wallet-link" data-wallet="${esc(m.wallet)}" title="${esc(m.wallet)}">${esc(m.wallet_short)}</code>`).join("")}</div>
         <div class="cabal-tokens">coins: <b>${esc((c.shared_tokens||[]).join(", "))}</b></div>
       </div>`).join("");
   }
@@ -376,6 +377,161 @@
     }));
   }
 
+  // ================= FRESH LOADOUTS =================
+  function renderLoadouts(list) {
+    const el = document.getElementById("loadoutGrid");
+    if (!list || !list.length) {
+      el.innerHTML = `<div class="empty">No fresh loadouts right now — watching for a strong team to load a young coin.</div>`;
+      return;
+    }
+    el.innerHTML = list.map((l) => {
+      const conv = ["heavy", "loading", "forming"].includes(l.conviction) ? l.conviction : "forming";
+      const team = (l.team || []).map((t) =>
+        `<code class="wallet-link" data-wallet="${esc(t.wallet)}" title="${esc(t.wallet)} · ${t.win_rate}%w">${esc(t.wallet_short)}</code>`).join("");
+      const cabalTag = l.cabal_id ? `<span class="cabal-link team-cabal" data-cabal="${esc(l.cabal_id)}">👥 ${esc(l.cabal_id)}</span>` : "";
+      const auth = (l.mint_renounced && l.freeze_renounced) ? `<span class="ok-tag">✅ renounced</span>` : "";
+      return `<div class="loadout-card conv-${conv}">
+        <div class="lc-head">
+          <div><a href="${esc(l.url)}" target="_blank" rel="noopener" class="lc-sym">${esc(l.symbol)}</a>
+            <span class="lc-age">${Math.round(l.age_minutes)}m old</span></div>
+          <span class="conv-badge ${conv}">${conv}</span>
+        </div>
+        <div class="lc-score">${bar("opp", l.loadout_score)}</div>
+        <div class="lc-meta">${l.strong_wallet_count} strong wallets · ${fmtCompact(l.smart_inflow_usd)} in · ${esc(l.phase)} ${auth}</div>
+        <div class="lc-team">${team} ${cabalTag}</div>
+      </div>`;
+    }).join("");
+  }
+
+  // ================= MODAL / PROFILES =================
+  let profileChart = null;
+  let currentModal = null;
+  const profileCache = new Map();
+  let cacheScan = -1;
+  const modalStack = [];
+
+  function destroyProfileChart() { if (profileChart) { profileChart.destroy(); profileChart = null; } }
+  function openModal(html, kind) {
+    const root = document.getElementById("modalRoot");
+    root.innerHTML = `<div class="modal-backdrop" data-close></div><div class="modal-panel ${kind}">${html}</div>`;
+    root.classList.add("open");
+    document.body.classList.add("modal-open");
+    root.setAttribute("aria-hidden", "false");
+  }
+  function closeModal() {
+    const root = document.getElementById("modalRoot");
+    destroyProfileChart();
+    root.classList.remove("open");
+    document.body.classList.remove("modal-open");
+    root.setAttribute("aria-hidden", "true");
+    modalStack.length = 0; currentModal = null;
+    setTimeout(() => { if (!root.classList.contains("open")) root.innerHTML = ""; }, 220);
+  }
+
+  function drawProfileChart(canvasId, career) {
+    destroyProfileChart();
+    const cv = document.getElementById(canvasId);
+    if (!cv || typeof Chart === "undefined" || !career || !career.length) return;
+    const data = career.map((p) => p.equity);
+    const labels = career.map((p) => new Date(p.ts * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" }));
+    const up = data[data.length - 1] >= data[0];
+    const ctx = cv.getContext("2d");
+    const grad = ctx.createLinearGradient(0, 0, 0, 200);
+    grad.addColorStop(0, up ? "rgba(25,227,164,.28)" : "rgba(255,82,103,.22)");
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+    profileChart = new Chart(ctx, {
+      type: "line",
+      data: { labels, datasets: [{ data, borderColor: up ? "#19e3a4" : "#ff5267", borderWidth: 2, fill: true, backgroundColor: grad, tension: .28, pointRadius: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => "Equity " + fmtUsd(c.parsed.y) } } },
+        scales: { x: { grid: { color: "rgba(30,42,61,.4)" }, ticks: { color: "#566077", maxTicksLimit: 7, font: { size: 9 } } },
+          y: { grid: { color: "rgba(30,42,61,.4)" }, ticks: { color: "#7d8ba3", font: { size: 9 }, callback: (v) => "$" + (v / 1000).toFixed(0) + "k" } } } },
+    });
+  }
+
+  async function openWalletProfile(addr) {
+    openModal(`<button class="modal-x" data-close>×</button><div class="skeleton">Loading wallet…</div>`, "drawer");
+    currentModal = { type: "wallet", id: addr };
+    let p = profileCache.get("w:" + addr);
+    if (!p) { try { p = await fetch("/api/wallet/" + encodeURIComponent(addr)).then((r) => r.json()); profileCache.set("w:" + addr, p); } catch (e) { return; } }
+    renderWalletProfile(p);
+  }
+  function renderWalletProfile(p) {
+    const back = modalStack.length ? `<button class="back-link" id="backBtn">← back</button>` : "";
+    const holdings = (p.holdings || []).map((hd) =>
+      `<div class="hold-row"><span>${esc(hd.symbol)}</span><span class="num">${fmtCompact(hd.value_usd)}</span><span class="num ${cls(hd.unrealized_pct)}">${fmtPct(hd.unrealized_pct)}</span><span class="src-tag">${esc(hd.source)}</span></div>`).join("");
+    const evs = (p.recent_events || []).slice(0, 8).map((e) =>
+      `<div class="ev-row"><span class="side-${esc(e.side)}">${esc((e.side || "").toUpperCase())}</span> ${esc(e.symbol)} <span class="mut">${fmtCompact(e.usd)}</span></div>`).join("") || `<div class="mut">no recent activity</div>`;
+    const cabalLink = p.cabal_id ? `· <span class="cabal-link" data-cabal="${esc(p.cabal_id)}">${esc(p.cabal_id)}</span>` : "";
+    openModal(`
+      ${back}<button class="modal-x" data-close>×</button>
+      <div class="prof-head">
+        <div class="prof-av">${esc((p.wallet || "?").charAt(0))}</div>
+        <div><div class="prof-name"><code class="copy-addr" data-copy="${esc(p.wallet)}">${esc(p.wallet_short)} ⧉</code> <span class="badge ${esc(p.kind)}">${esc((p.kind || "").replace("_", " "))}</span></div>
+          <div class="prof-sub">${esc(p.source)} ${p.tracked ? "" : "· untracked"} ${cabalLink}</div></div>
+      </div>
+      <div class="prof-stats">
+        <div class="pstat"><div class="lbl">Net PnL</div><div class="val ${cls(p.net_usd)}">${fmtUsd(p.net_usd)}</div></div>
+        <div class="pstat"><div class="lbl">ROI</div><div class="val ${cls(p.roi_pct)}">${fmtPct(p.roi_pct)}</div></div>
+        <div class="pstat"><div class="lbl">Win rate</div><div class="val">${p.win_rate}%</div></div>
+        <div class="pstat"><div class="lbl">Holdings</div><div class="val">${fmtCompact(p.holdings_value_usd)}</div></div>
+        <div class="pstat"><div class="lbl">Coins</div><div class="val">${p.token_count}</div></div>
+        <div class="pstat"><div class="lbl">Realized</div><div class="val ${cls(p.realized_usd)}">${fmtCompact(p.realized_usd)}</div></div>
+      </div>
+      <div class="prof-section">Career <span class="hint">modelled equity</span></div>
+      <div class="prof-chart"><canvas id="careerChart"></canvas></div>
+      <div class="prof-section">Holdings</div>
+      <div class="hold-list">${holdings || '<div class="mut">none</div>'}</div>
+      <div class="prof-section">Recent activity</div>
+      <div class="ev-list">${evs}</div>
+      <div class="prof-foot">PnL, holdings &amp; career are modelled from market pressure — not on-chain trade history.</div>
+    `, "drawer");
+    currentModal = { type: "wallet", id: p.wallet };
+    drawProfileChart("careerChart", p.career);
+    const bb = document.getElementById("backBtn");
+    if (bb) bb.addEventListener("click", () => { const prev = modalStack.pop(); if (prev) prev(); });
+  }
+
+  async function openCabalProfile(id) {
+    openModal(`<button class="modal-x" data-close>×</button><div class="skeleton">Loading cabal…</div>`, "modal");
+    currentModal = { type: "cabal", id };
+    let c = profileCache.get("c:" + id);
+    if (!c) { try { c = await fetch("/api/cabal/" + encodeURIComponent(id)).then((r) => r.json()); profileCache.set("c:" + id, c); } catch (e) { return; } }
+    if (c.error) { openModal(`<button class="modal-x" data-close>×</button><div class="empty">Cabal not found.</div>`, "modal"); return; }
+    renderCabalProfile(c);
+  }
+  function renderCabalProfile(c) {
+    const members = (c.members || []).map((m) =>
+      `<div class="cmember wallet-link" data-wallet="${esc(m.wallet)}"><div class="prof-av sm">${esc((m.wallet || "?").charAt(0))}</div>
+        <div><code>${esc(m.wallet_short)}</code><br><span class="badge ${esc(m.kind)}">${esc((m.kind || "").replace("_", " "))}</span> <small class="mut">${m.win_rate}%w</small></div></div>`).join("");
+    const loading = (c.loading_now || []).map((l) =>
+      `<div class="load-row"><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.symbol)}</a> <span class="mut">${Math.round(l.age_minutes)}m · score ${l.loadout_score} · ${fmtCompact(l.smart_inflow_usd)} in</span></div>`).join("") || `<div class="mut">not currently loading anything fresh</div>`;
+    openModal(`
+      <button class="modal-x" data-close>×</button>
+      <div class="prof-head"><div class="prof-av cab">${esc((c.id || "cabal-x").slice(6, 7).toUpperCase())}</div>
+        <div><div class="prof-name"><span class="cid">${esc(c.id)}</span> <span class="csz">${c.size} wallets</span></div>
+        <div class="prof-sub">${esc(c.source)} · coordinated group</div></div></div>
+      <div class="prof-stats">
+        <div class="pstat"><div class="lbl">Net flow</div><div class="val ${cls(c.combined.net_usd)}">${fmtCompact(c.combined.net_usd)}</div></div>
+        <div class="pstat"><div class="lbl">Avg win</div><div class="val">${c.combined.win_rate}%</div></div>
+        <div class="pstat"><div class="lbl">Dumped</div><div class="val neg">${fmtCompact(c.combined.sell_usd)}</div></div>
+        <div class="pstat"><div class="lbl">Co-dumps</div><div class="val">${c.combined.dump_hits}</div></div>
+        <div class="pstat"><div class="lbl">Coins</div><div class="val">${c.token_count}</div></div>
+      </div>
+      <div class="prof-section">Combined career <span class="hint">modelled</span></div>
+      <div class="prof-chart"><canvas id="careerChart"></canvas></div>
+      <div class="prof-section">🚀 Currently loading</div>
+      <div class="load-list">${loading}</div>
+      <div class="prof-section">Members <span class="hint">click to open</span></div>
+      <div class="cmember-grid">${members}</div>
+      <div class="prof-section">Track record</div>
+      <div class="cabal-tokens">coins: <b>${esc((c.shared_tokens || []).join(", ")) || "—"}</b></div>
+      <div class="prof-foot">Stats &amp; career are modelled from market pressure — not on-chain trade history.</div>
+    `, "modal");
+    currentModal = { type: "cabal", id: c.id };
+    drawProfileChart("careerChart", c.career);
+  }
+
   // ---------- snapshot dispatch ----------
   function applySnapshot(s) {
     lastSnapshot = s;
@@ -397,7 +553,14 @@
     } catch (e) { /* ignore */ }
   }
   async function refreshWalletsTab() {
-    try { renderCategorized(await fetch("/api/wallets/categorized").then((r) => r.json())); } catch (e) {}
+    try {
+      const [cat, lo] = await Promise.all([
+        fetch("/api/wallets/categorized").then((r) => r.json()),
+        fetch("/api/loadouts").then((r) => r.json()),
+      ]);
+      renderCategorized(cat);
+      renderLoadouts(lo);
+    } catch (e) { /* ignore */ }
   }
   async function refreshInfluencers() {
     try { renderInfluencers(await fetch("/api/influencers").then((r) => r.json())); } catch (e) {}
@@ -488,6 +651,25 @@
     await refreshAux();
     connect();
     setInterval(refreshAux, 15000);
+
+    // ---- wallet/cabal profile delegation (works across re-renders) ----
+    document.addEventListener("click", (e) => {
+      const copyEl = e.target.closest("[data-copy]");
+      if (copyEl) { if (navigator.clipboard) navigator.clipboard.writeText(copyEl.dataset.copy); return; }
+      const w = e.target.closest("[data-wallet]");
+      if (w && w.dataset.wallet) {
+        if (currentModal && currentModal.type === "cabal") {
+          const cid = currentModal.id; modalStack.push(() => openCabalProfile(cid));
+        }
+        openWalletProfile(w.dataset.wallet); return;
+      }
+      const c = e.target.closest("[data-cabal]");
+      if (c && c.dataset.cabal) { openCabalProfile(c.dataset.cabal); return; }
+    });
+    document.getElementById("modalRoot").addEventListener("click", (e) => {
+      if (e.target.closest("[data-close]")) closeModal();
+    });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
   }
   boot();
 })();

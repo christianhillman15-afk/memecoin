@@ -144,6 +144,25 @@ def create_app() -> FastAPI:
     async def api_wallets_categorized() -> JSONResponse:
         return JSONResponse(scanner.intel.categorized(14))
 
+    @app.get("/api/loadouts")
+    async def api_loadouts() -> JSONResponse:
+        return JSONResponse(scanner.intel.loadouts(14))
+
+    @app.get("/api/cabals/accumulating")
+    async def api_cabals_accum() -> JSONResponse:
+        return JSONResponse(scanner.intel.accumulating_cabals(8))
+
+    @app.get("/api/wallet/{address}")
+    async def api_wallet(address: str) -> JSONResponse:
+        return JSONResponse(scanner.intel.wallet_profile(address))
+
+    @app.get("/api/cabal/{cabal_id}")
+    async def api_cabal(cabal_id: str) -> JSONResponse:
+        profile = scanner.intel.cabal_profile(cabal_id)
+        if profile is None:
+            return JSONResponse({"error": "cabal not found"}, status_code=404)
+        return JSONResponse(profile)
+
     @app.get("/api/influencers")
     async def api_influencers() -> JSONResponse:
         return JSONResponse(scanner.influencers.snapshot())

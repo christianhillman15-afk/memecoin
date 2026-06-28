@@ -168,6 +168,10 @@ class Scanner:
         board.sort(key=lambda b: b["detection"]["opportunity"], reverse=True)
         self.board = board
 
+        # forward-looking "fresh loadout" detection + per-wallet career curves
+        self.intel.compute_loadouts(board)
+        self.intel.record_careers()
+
         # update influencer wallet activity against the live universe
         self.influencers.update(snapshots, self.scan_count)
 
