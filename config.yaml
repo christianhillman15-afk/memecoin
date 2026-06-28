@@ -1,0 +1,49 @@
+# =============================================================================
+# MemeRadar configuration
+# All values can be tuned live; secrets come from environment variables (.env).
+# =============================================================================
+
+# --- Universe / data ---------------------------------------------------------
+chain: solana                 # which chain to scan (dexscreener chainId)
+scan_interval_seconds: 25     # how often the scanner loop runs
+universe_size: 45             # max tokens tracked per scan
+min_liquidity_usd: 20000      # ignore illiquid / rug-prone pools
+max_liquidity_usd: 8000000    # ignore mega-caps (not memecoin pumps)
+min_pair_age_minutes: 15      # avoid the first chaotic minutes
+max_pair_age_minutes: 20160   # 14 days — pump/dumps are young coins
+min_volume_h1_usd: 8000       # require real recent activity
+
+# --- Paper trading -----------------------------------------------------------
+starting_balance_usd: 10000   # the requested $10,000 paper bankroll
+max_open_positions: 5         # diversification cap
+position_size_pct: 0.12       # fraction of equity deployed per entry
+max_position_usd: 2500        # hard cap on a single position
+fee_pct: 0.005               # round-trip-ish swap fee assumption (per side)
+slippage_pct: 0.012           # simulated slippage on fills
+
+# --- Entry rules -------------------------------------------------------------
+entry_min_pump_score: 62      # 0-100; how strong the pump signal must be
+entry_max_dump_risk: 45       # 0-100; refuse to buy into an active distribution
+entry_min_safety: 55          # 0-100; liquidity/age/structure sanity
+entry_require_smart_inflow: true  # require net smart-money buying
+
+# --- Exit rules ("sell before the dump") -------------------------------------
+take_profit_pct: 0.45         # lock in a beautiful profit at +45%
+stop_loss_pct: 0.18           # hard floor at -18%
+trailing_stop_pct: 0.14       # give back at most 14% from the peak
+arm_trailing_after_pct: 0.12  # only start trailing once +12% in profit
+exit_on_dump_risk: 72         # bail if dump risk spikes above this
+exit_on_momentum_reversal: true
+min_hold_seconds: 45          # avoid instant in/out churn
+
+# --- Wallet intelligence -----------------------------------------------------
+whale_min_usd: 50000          # a holder this big counts as a "whale"
+insider_early_buy_rank: 25    # bought within first N holders = "insider-like"
+smart_money_min_winrate: 0.55 # historical win-rate to be "smart money"
+multi_sell_window_seconds: 240 # window for clustering coordinated sells
+multi_sell_min_wallets: 3     # only act when >= this many smart wallets dump
+multi_sell_min_usd: 15000     # ...and the combined size is meaningful
+
+# --- Engine ------------------------------------------------------------------
+auto_trade: true              # let the strategy open/close paper positions
+log_level: INFO

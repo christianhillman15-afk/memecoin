@@ -1,0 +1,8 @@
+# MemeRadar — paper-trading memecoin pump/dump detector
+# Python 3.10+ recommended
+
+fastapi==0.138.1
+uvicorn[standard]==0.49.0
+httpx==0.28.1
+pydantic==2.13.4
+pyyaml==6.0.2
