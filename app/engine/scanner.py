@@ -21,6 +21,7 @@ from typing import Any, Callable, Optional
 from ..config import Config
 from ..database import Database
 from ..data.dexscreener import DexScreenerClient
+from ..data.onchain import OnchainSafety
 from ..data.wallets import build_wallet_provider
 from ..models import DetectionResult, Signal, TokenIntel, TokenSnapshot
 from .detector import detect
@@ -37,6 +38,7 @@ class Scanner:
         self.cfg = cfg
         self.db = db
         self.dex = DexScreenerClient(chain=cfg.chain)
+        self.onchain = OnchainSafety(cfg)
         self.wallets = build_wallet_provider(cfg)
         self.intel = WalletIntel(cfg)
         self.influencers = InfluencerTracker(cfg)
@@ -74,6 +76,7 @@ class Scanner:
             except (asyncio.CancelledError, Exception):  # noqa: BLE001
                 pass
         await self.dex.close()
+        await self.onchain.close()
         await self.wallets.close()
 
     async def _loop(self) -> None:
@@ -106,6 +109,17 @@ class Scanner:
 
         snapshots = await self.dex.enrich(addresses)
         snap_by_addr = {s.address: s for s in snapshots}
+
+        # on-chain rug check (mint/freeze authority) for the whole universe
+        try:
+            auth = await self.onchain.authorities([s.address for s in snapshots])
+            for s in snapshots:
+                flags = auth.get(s.address)
+                if flags:
+                    s.mint_renounced = flags["mint_renounced"]
+                    s.freeze_renounced = flags["freeze_renounced"]
+        except Exception as e:  # noqa: BLE001 — never let safety checks kill a scan
+            log.warning("on-chain safety check failed: %s", e)
 
         board: list[dict[str, Any]] = []
         for snap in snapshots:

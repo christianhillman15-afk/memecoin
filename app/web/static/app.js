@@ -126,8 +126,8 @@
       if (i.confirmed_multi_sell) sig = `<span class="tag-flag">multi-sell ${i.multi_sell_wallets}w</span>`;
       else if (i.smart_inflow_score > 35) sig = `<span class="badge smart_money">smart in</span>`;
       else if (i.smart_inflow_score < -35) sig = `<span class="badge distribution">smart out</span>`;
-      const flags = (d.flags || []).filter(f => ["thin_liquidity","high_churn","rollover","sell_pressure","supply_overhang"].includes(f))
-        .slice(0, 2).map(f => `<span class="tag-flag">${f.replace(/_/g," ")}</span>`).join("");
+      const flags = (d.flags || []).filter(f => ["mint_authority","freeze_authority","thin_liquidity","high_churn","rollover","sell_pressure","supply_overhang"].includes(f))
+        .slice(0, 3).map(f => `<span class="tag-flag">${f.replace(/_/g," ")}</span>`).join("");
       const ch = (w) => {
         const v = t.price_change?.[w] ?? 0;
         return `<td class="num ${cls(v)}">${fmtPct(v)}</td>`;

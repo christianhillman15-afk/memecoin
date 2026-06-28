@@ -68,6 +68,21 @@ def test_entry_blocked_by_confirmed_multi_sell():
     assert not d.enter
 
 
+def test_entry_blocked_when_mint_authority_live():
+    d = evaluate_entry(_snap(mint_renounced=False, freeze_renounced=True), _det(), _intel(), CFG)
+    assert not d.enter and "mint authority" in d.reason
+
+
+def test_entry_blocked_when_freeze_authority_live():
+    d = evaluate_entry(_snap(mint_renounced=True, freeze_renounced=False), _det(), _intel(), CFG)
+    assert not d.enter and "freeze authority" in d.reason
+
+
+def test_entry_ok_when_authorities_renounced():
+    d = evaluate_entry(_snap(mint_renounced=True, freeze_renounced=True), _det(), _intel(), CFG)
+    assert d.enter
+
+
 # ---------------- exits ----------------
 def test_stop_loss_triggers():
     pos = _pos(entry=0.01, last=0.008)  # -20%

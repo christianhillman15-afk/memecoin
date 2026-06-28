@@ -133,6 +133,15 @@ def detect(snap: TokenSnapshot, cfg: Config) -> DetectionResult:
     if age < cfg.min_pair_age_minutes:
         safety -= 25
         flags.append("very_new")
+    # on-chain rug tells (only when checked; unknown => no change)
+    if snap.mint_renounced is False:
+        safety -= 30
+        flags.append("mint_authority")     # dev can mint infinite supply
+    elif snap.mint_renounced is True:
+        safety += 6
+    if snap.freeze_renounced is False:
+        safety -= 22
+        flags.append("freeze_authority")   # dev can freeze holders (honeypot)
     safety = _clamp(safety)
 
     # ---------------- MOMENTUM ------------------ #

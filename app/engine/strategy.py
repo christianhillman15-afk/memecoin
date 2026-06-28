@@ -53,6 +53,13 @@ def evaluate_entry(snap: TokenSnapshot, det: DetectionResult,
     if snap.volume.get("h1", 0.0) < cfg.min_volume_h1_usd:
         return EntryDecision(False, "insufficient recent volume")
 
+    # on-chain rug gate: never buy a token whose dev can still mint/freeze
+    if cfg.block_unrenounced_authority:
+        if snap.mint_renounced is False:
+            return EntryDecision(False, "mint authority not renounced (rug risk)")
+        if snap.freeze_renounced is False:
+            return EntryDecision(False, "freeze authority not renounced (honeypot risk)")
+
     # signal gates ---------------------------------------------------------
     if det.pump_score < cfg.entry_min_pump_score:
         return EntryDecision(False, f"pump score {det.pump_score:.0f} < {cfg.entry_min_pump_score:.0f}")

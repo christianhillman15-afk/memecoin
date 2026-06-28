@@ -34,6 +34,9 @@ class TokenSnapshot:
     volume: dict[str, float] = field(default_factory=dict)
     txns: dict[str, dict[str, int]] = field(default_factory=dict)
     fetched_at: float = field(default_factory=now)
+    # on-chain rug checks (None = not checked / unknown)
+    mint_renounced: bool | None = None      # mint authority renounced?
+    freeze_renounced: bool | None = None     # freeze authority renounced?
 
     @property
     def age_minutes(self) -> float:
