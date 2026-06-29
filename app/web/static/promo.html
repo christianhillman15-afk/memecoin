@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Trenchr — intro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --accent:#19e3a4; --cyan:#37d6d6; --red:#ff5267; --amber:#ffb547;
+    --bg:#05080d; --text:#e9f3ff; --mut:#5d6b82;
+    --sans:'Orbitron', system-ui, sans-serif;
+    --mono:'JetBrains Mono', ui-monospace, monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;background:#000;overflow:hidden}
+  body{display:grid;place-items:center;font-family:var(--sans);color:var(--text)}
+
+  /* ===== stage ===== */
+  .stage{position:relative;width:100vw;height:100vh;overflow:hidden;
+    background:radial-gradient(120% 100% at 50% 35%, #0a1320 0%, var(--bg) 55%, #02040a 100%)}
+  .stage::after{content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(120% 90% at 50% 50%, transparent 55%, rgba(0,0,0,.75) 100%)}
+  /* scanlines */
+  .stage::before{content:"";position:absolute;inset:0;z-index:6;pointer-events:none;opacity:.35;
+    background:repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 3px)}
+
+  /* perspective grid floor */
+  .grid{position:absolute;left:50%;top:58%;width:240vmax;height:160vmax;transform:translateX(-50%) perspective(60vmin) rotateX(72deg);
+    background:
+      linear-gradient(transparent 0%, rgba(25,227,164,.10) 100%),
+      repeating-linear-gradient(90deg, rgba(55,214,214,.14) 0 1px, transparent 1px 5vmin),
+      repeating-linear-gradient(0deg,  rgba(25,227,164,.12) 0 1px, transparent 1px 5vmin);
+    opacity:0;animation:gridIn 1.2s ease forwards, gridMove 6s linear infinite;mask-image:linear-gradient(transparent,#000 30%,#000 70%,transparent)}
+  @keyframes gridIn{to{opacity:.5}}
+  @keyframes gridMove{to{background-position:0 0,0 0,0 5vmin}}
+
+  /* radar */
+  .radar{position:absolute;left:50%;top:50%;width:78vmin;height:78vmin;transform:translate(-50%,-50%);
+    border-radius:50%;opacity:0;animation:radarIn 1s ease .2s forwards}
+  @keyframes radarIn{to{opacity:.9}}
+  .ring{position:absolute;inset:0;border-radius:50%;border:1px solid rgba(55,214,214,.18)}
+  .ring.r2{inset:16%} .ring.r3{inset:32%} .ring.r4{inset:48%}
+  .cross,.crossv{position:absolute;background:rgba(55,214,214,.14)}
+  .cross{left:0;right:0;top:50%;height:1px} .crossv{top:0;bottom:0;left:50%;width:1px}
+  .sweep{position:absolute;inset:0;border-radius:50%;
+    background:conic-gradient(from 0deg, rgba(25,227,164,.55) 0deg, rgba(25,227,164,.12) 24deg, transparent 60deg);
+    animation:spin 2.6s linear infinite;filter:drop-shadow(0 0 12px rgba(25,227,164,.5))}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .blip{position:absolute;width:9px;height:9px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 14px 3px var(--accent);opacity:0}
+  .blip.show{animation:blip 2.2s ease forwards}
+  @keyframes blip{0%{opacity:0;transform:scale(.2)}20%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(2.4)}}
+  .lock{position:absolute;left:50%;top:50%;width:18vmin;height:18vmin;transform:translate(-50%,-50%) scale(.4);
+    border:2px solid var(--accent);border-radius:14px;opacity:0;
+    box-shadow:0 0 30px rgba(25,227,164,.6), inset 0 0 22px rgba(25,227,164,.25)}
+  .lock.show{animation:lock .7s cubic-bezier(.2,1.4,.3,1) forwards}
+  @keyframes lock{to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+  .lock b{position:absolute;width:18px;height:18px;border:2px solid var(--accent)}
+  .lock .tl{top:-2px;left:-2px;border-right:0;border-bottom:0}
+  .lock .tr{top:-2px;right:-2px;border-left:0;border-bottom:0}
+  .lock .bl{bottom:-2px;left:-2px;border-right:0;border-top:0}
+  .lock .br{bottom:-2px;right:-2px;border-left:0;border-top:0}
+
+  /* falling data columns */
+  .data{position:absolute;inset:0;z-index:2;opacity:0;overflow:hidden;font-family:var(--mono);font-size:12px;color:rgba(25,227,164,.5)}
+  .data.on{opacity:.55}
+  .col{position:absolute;top:-40%;white-space:pre;line-height:1.5;animation:fall linear infinite}
+  @keyframes fall{to{transform:translateY(160vh)}}
+
+  /* ===== text layers ===== */
+  .layer{position:absolute;inset:0;z-index:8;display:grid;place-items:center;text-align:center;padding:6vmin}
+  .line{opacity:0;transform:translateY(14px);transition:opacity .5s ease, transform .5s ease;
+    font-weight:800;letter-spacing:.06em;line-height:1.15;font-size:clamp(26px,7vmin,76px);
+    text-shadow:0 0 24px rgba(25,227,164,.25)}
+  .line.in{opacity:1;transform:none}
+  .line.out{opacity:0;transform:translateY(-14px)}
+  .line .red{color:var(--red);text-shadow:0 0 24px rgba(255,82,103,.4)}
+  .line .grn{color:var(--accent)}
+  .sub{font-family:var(--mono);font-weight:400;font-size:clamp(12px,2.1vmin,18px);color:var(--mut);
+    letter-spacing:.2em;text-transform:uppercase;margin-top:2.4vmin}
+
+  /* glitch */
+  .glitch{position:relative}
+  .glitch::before,.glitch::after{content:attr(data-t);position:absolute;left:0;top:0;width:100%;clip-path:inset(0)}
+  .glitch.in::before{color:var(--cyan);animation:gl1 1.6s steps(2) 1 both;mix-blend-mode:screen}
+  .glitch.in::after{color:var(--red);animation:gl2 1.6s steps(2) 1 both;mix-blend-mode:screen}
+  @keyframes gl1{0%{transform:translate(0)}10%{transform:translate(-3px,1px)}20%{transform:translate(2px,-1px)}30%{transform:translate(0)}100%{transform:translate(0)}}
+  @keyframes gl2{0%{transform:translate(0)}12%{transform:translate(3px,-1px)}22%{transform:translate(-2px,1px)}32%{transform:translate(0)}100%{transform:translate(0)}}
+
+  /* logo reveal */
+  #logoLayer{flex-direction:column}
+  .logo-wrap{display:flex;flex-direction:column;align-items:center;gap:2.6vmin;opacity:0;transform:scale(.9);transition:opacity .7s ease, transform .7s cubic-bezier(.2,1.3,.3,1)}
+  .logo-wrap.in{opacity:1;transform:none}
+  .mark{width:18vmin;height:18vmin;max-width:150px;max-height:150px;border-radius:26%;
+    display:grid;place-items:center;font-size:11vmin;color:#04140d;
+    background:linear-gradient(135deg,var(--accent),var(--cyan));
+    box-shadow:0 0 60px rgba(25,227,164,.55), inset 0 0 30px rgba(255,255,255,.25);animation:pulse 2.4s ease-in-out infinite}
+  @keyframes pulse{50%{box-shadow:0 0 90px rgba(25,227,164,.8), inset 0 0 30px rgba(255,255,255,.3)}}
+  .word{font-family:var(--sans);font-weight:900;font-size:clamp(46px,15vmin,150px);letter-spacing:.12em;
+    background:linear-gradient(180deg,#fff 0%,#bff5e3 55%,var(--accent) 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 0 30px rgba(25,227,164,.45))}
+  .tagline{opacity:0;transform:translateY(10px);transition:.6s ease;font-family:var(--mono);font-weight:700;
+    font-size:clamp(13px,2.6vmin,22px);letter-spacing:.04em;color:#cfe9df}
+  .tagline.in{opacity:1;transform:none}
+  .tagline .dot{color:var(--accent)}
+
+  /* feature chips + counter */
+  .feats{display:flex;flex-wrap:wrap;gap:1.2vmin 1.8vmin;justify-content:center;margin-top:3vmin}
+  .chip{opacity:0;transform:translateY(10px) scale(.96);transition:.45s ease;
+    font-family:var(--mono);font-weight:700;font-size:clamp(11px,1.9vmin,16px);letter-spacing:.04em;
+    padding:1.1vmin 2vmin;border-radius:999px;border:1px solid rgba(25,227,164,.4);
+    background:rgba(25,227,164,.08);color:#d7fff0}
+  .chip.in{opacity:1;transform:none}
+  .counter{margin-top:3.4vmin;font-family:var(--mono);font-weight:700;color:var(--accent);
+    font-size:clamp(26px,6vmin,60px);letter-spacing:.02em;opacity:0;transition:.5s ease;
+    text-shadow:0 0 26px rgba(25,227,164,.5)}
+  .counter.in{opacity:1}
+  .counter small{display:block;font-size:.32em;color:var(--mut);letter-spacing:.25em;text-transform:uppercase;margin-top:1vmin;font-weight:400}
+
+  /* CTA end card */
+  #ctaLayer .cta{display:flex;flex-direction:column;align-items:center;gap:1.6vmin;opacity:0;transition:.8s ease}
+  #ctaLayer .cta.in{opacity:1}
+  .cta .word{font-size:clamp(34px,9vmin,90px)}
+  .cta .edge{font-family:var(--mono);font-weight:700;font-size:clamp(14px,2.8vmin,24px);color:#d7fff0;letter-spacing:.05em}
+  .cta .meta{font-family:var(--mono);font-size:clamp(11px,1.9vmin,15px);color:var(--mut);letter-spacing:.18em;text-transform:uppercase}
+
+  /* flash + vignette pulses */
+  .flash{position:absolute;inset:0;z-index:9;background:#fff;opacity:0;pointer-events:none}
+  .flash.go{animation:flash .5s ease}
+  @keyframes flash{0%{opacity:0}8%{opacity:.55}100%{opacity:0}}
+
+  .controls{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:30;
+    font-family:var(--mono);font-size:12px;color:#46566e;display:flex;gap:14px;align-items:center}
+  .controls button{font-family:var(--mono);background:#0e1726;border:1px solid #21314a;color:#9fb3cc;
+    padding:6px 12px;border-radius:8px;cursor:pointer}
+  .controls button:hover{border-color:var(--accent);color:#fff}
+  .hide{display:none!important}
+</style>
+</head>
+<body>
+  <div class="stage" id="stage">
+    <div class="grid"></div>
+
+    <div class="radar" id="radar">
+      <div class="ring"></div><div class="ring r2"></div><div class="ring r3"></div><div class="ring r4"></div>
+      <div class="cross"></div><div class="crossv"></div>
+      <div class="sweep"></div>
+      <div class="blip" style="left:62%;top:38%"></div>
+      <div class="blip" style="left:30%;top:60%"></div>
+      <div class="blip" style="left:70%;top:66%"></div>
+      <div class="blip" style="left:40%;top:30%"></div>
+      <div class="lock" id="lock"><b class="tl"></b><b class="tr"></b><b class="bl"></b><b class="br"></b></div>
+    </div>
+
+    <div class="data" id="data"></div>
+
+    <!-- hook lines -->
+    <div class="layer"><div class="line glitch" id="h1" data-t="THE TRENCHES ARE DARK.">THE TRENCHES ARE DARK.</div></div>
+    <div class="layer"><div class="line" id="h2">A NEW COIN <span class="grn">EVERY&nbsp;4&nbsp;SECONDS.</span><div class="sub">pump.fun · solana · 24/7</div></div></div>
+    <div class="layer"><div class="line" id="h3"><span class="red">99% ARE RUGS.</span><div class="sub">dev dumps · bundled snipers · honeypots</div></div></div>
+    <div class="layer"><div class="line glitch" id="h4" data-t="TRENCHR SEES THE 1%.">TRENCHR SEES THE <span class="grn">1%.</span></div></div>
+
+    <!-- logo -->
+    <div class="layer hide" id="logoLayer">
+      <div class="logo-wrap" id="logoWrap">
+        <div class="mark">◎</div>
+        <div class="word">TRENCHR</div>
+        <div class="tagline" id="tagline">Track the cabals<span class="dot"> · </span>catch the pumps<span class="dot"> · </span>sell before the dump</div>
+      </div>
+    </div>
+
+    <!-- features + counter -->
+    <div class="layer hide" id="featLayer">
+      <div>
+        <div class="feats" id="feats">
+          <span class="chip">📡 Pump &amp; dump radar</span>
+          <span class="chip">🐋 Wallet &amp; cabal intel</span>
+          <span class="chip">🚀 pump.fun launchpad</span>
+          <span class="chip">💸 Sells before the dump</span>
+        </div>
+        <div class="counter" id="counter">+$0.00<small>paper P&amp;L · live signals</small></div>
+      </div>
+    </div>
+
+    <!-- CTA -->
+    <div class="layer hide" id="ctaLayer">
+      <div class="cta" id="cta">
+        <div class="word">TRENCHR</div>
+        <div class="edge">your edge in the trenches</div>
+        <div class="meta">paper-trading desk · solana · @yourhandle</div>
+      </div>
+    </div>
+
+    <div class="flash" id="flash"></div>
+  </div>
+
+  <div class="controls" id="controls">
+    <span>Trenchr intro</span>
+    <button onclick="run()">▶ Replay</button>
+    <button onclick="document.getElementById('controls').classList.add('hide')">Hide (for recording)</button>
+    <span>press R to replay</span>
+  </div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  // falling data columns (wallet-address vibe)
+  (function buildData(){
+    const d = $("data"); const chars = "0123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+    const words = ["BUY","SELL","CABAL","WHALE","MINT","BONDED","x12","x340","+520%","RUG","SNIPE","SMART$"];
+    for(let i=0;i<14;i++){
+      const c=document.createElement("div"); c.className="col";
+      c.style.left=(i/14*100+Math.random()*4)+"%";
+      c.style.animationDuration=(5+Math.random()*5)+"s";
+      c.style.animationDelay=(-Math.random()*8)+"s";
+      let s=""; for(let j=0;j<22;j++){ s += (Math.random()<.22? words[(Math.random()*words.length)|0] : Array.from({length:6},()=>chars[(Math.random()*chars.length)|0]).join("")) + "\n"; }
+      c.textContent=s; d.appendChild(c);
+    }
+  })();
+
+  const timers = [];
+  const at = (t, fn) => timers.push(setTimeout(fn, t));
+  const cls = (id, c, on=true) => $(id).classList[on?"add":"remove"](c);
+  const showLine = (id) => { cls(id,"out",false); cls(id,"in"); };
+  const hideLine = (id) => { cls(id,"in",false); cls(id,"out"); };
+  const flash = () => { const f=$("flash"); f.classList.remove("go"); void f.offsetWidth; f.classList.add("go"); };
+
+  function countUp(el, to, dur){
+    const t0 = performance.now();
+    const fmt = (n) => "+$"+n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+    (function tick(now){
+      const p = Math.min(1,(now-t0)/dur); const e = 1-Math.pow(1-p,3);
+      el.firstChild.textContent = fmt(to*e);
+      if(p<1) requestAnimationFrame(tick);
+    })(t0);
+  }
+
+  function reset(){
+    timers.forEach(clearTimeout); timers.length=0;
+    ["h1","h2","h3","h4"].forEach(id=>{cls(id,"in",false);cls(id,"out",false);});
+    ["logoLayer","featLayer","ctaLayer"].forEach(id=>cls(id,"hide",true));
+    cls("logoWrap","in",false); cls("tagline","in",false); cls("counter","in",false);
+    cls("cta","in",false); cls("lock","show",false); cls("data","on",false);
+    [...document.querySelectorAll(".chip")].forEach(c=>c.classList.remove("in"));
+    [...document.querySelectorAll(".blip")].forEach(b=>b.classList.remove("show"));
+    $("counter").firstChild.textContent="+$0.00";
+  }
+
+  function run(){
+    reset();
+    // scene 1 — hook
+    at(300, ()=>cls("data","on"));
+    at(400, ()=>showLine("h1"));
+    at(600, ()=>document.querySelectorAll(".blip").forEach((b,i)=>setTimeout(()=>b.classList.add("show"),i*300)));
+    // scene 2
+    at(2500, ()=>hideLine("h1"));
+    at(2750, ()=>showLine("h2"));
+    // scene 3
+    at(4600, ()=>hideLine("h2"));
+    at(4850, ()=>showLine("h3"));
+    // scene 4 — lock on
+    at(6700, ()=>hideLine("h3"));
+    at(6950, ()=>{ showLine("h4"); cls("lock","show"); });
+    // logo reveal
+    at(8900, ()=>{ hideLine("h4"); flash(); });
+    at(9050, ()=>{ cls("logoLayer","hide",false); cls("logoWrap","in"); });
+    at(10000, ()=>cls("tagline","in"));
+    // features + counter
+    at(11400, ()=>{ cls("logoLayer","hide",true); cls("featLayer","hide",false);
+      document.querySelectorAll(".chip").forEach((c,i)=>setTimeout(()=>c.classList.add("in"), i*260)); });
+    at(12800, ()=>{ cls("counter","in"); countUp($("counter"),4534.56,2000); });
+    // CTA
+    at(15400, ()=>{ flash(); });
+    at(15550, ()=>{ cls("featLayer","hide",true); cls("ctaLayer","hide",false); cls("cta","in"); });
+  }
+
+  addEventListener("keydown", e=>{ if(e.key.toLowerCase()==="r") run(); });
+  run();
+</script>
+</body>
+</html>
