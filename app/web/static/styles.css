@@ -568,3 +568,35 @@ body.modal-open{overflow:hidden}
 .lp-locked code{background:var(--panel);border:1px solid var(--border);border-radius:5px;
   padding:1px 5px;font-size:11px;color:var(--amber)}
 .lp-locked p{margin:6px 0}
+
+/* ============================================================= */
+/* Persistent topbar Cash + P&L widget (all tabs)                */
+/* ============================================================= */
+.tb-left{display:flex;align-items:baseline;gap:12px;min-width:0}
+.tb-stats{display:flex;gap:20px;align-items:center;flex-shrink:0}
+.tb-stat{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}
+.tb-l{font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--faint);font-weight:600}
+.tb-v{font-family:var(--mono);font-weight:700;font-size:14.5px;color:var(--text);letter-spacing:-.3px}
+.tb-v.pos{color:var(--green)} .tb-v.neg{color:var(--red)}
+@media (max-width:760px){
+  .tb-stats{gap:12px}
+  .tb-stat .tb-l{display:none}
+  .tb-v{font-size:12.5px}
+}
+
+/* clickable position rows + coin profile modal (chart + specs + position) */
+.pos-row{cursor:pointer}
+.pos-row:hover{background:rgba(25,227,164,.05)}
+.link-sym{color:var(--text);font-weight:600;cursor:pointer}
+.link-sym:hover{color:var(--accent)}
+.modal-chart{height:340px;flex:none;border:1px solid var(--border);border-radius:10px;
+  margin-bottom:12px;background:#0b1019}
+.modal-chart iframe{border-radius:10px}
+.pos-strip{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;background:var(--panel2);
+  border:1px solid var(--border);border-radius:10px;padding:11px 14px;margin-bottom:12px}
+.pos-strip .ps{display:flex;flex-direction:column;gap:2px}
+.pos-strip .ps > span{font-size:9px;text-transform:uppercase;letter-spacing:.4px;color:var(--faint)}
+.pos-strip .ps b{font-family:var(--mono);font-weight:650;font-size:13px}
+.pos-strip .ps b small{font-size:10.5px;font-weight:600}
+.pos-sell-wrap{margin-left:auto}
+.pos-sell-wrap .sell-btns{margin-top:3px}

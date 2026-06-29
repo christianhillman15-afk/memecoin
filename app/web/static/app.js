@@ -84,6 +84,17 @@
     document.getElementById("kDeployed").textContent = fmtUsd(Math.max(0, p.equity - p.cash), 0);
     const tc = document.getElementById("tradeCash");
     if (tc) tc.textContent = "cash " + fmtUsd(p.cash, 0);
+    // persistent corner widget (shown on every tab via the shared topbar)
+    const tbE = document.getElementById("tbEquity");
+    if (tbE) tbE.textContent = fmtUsd(p.equity, 0);
+    const tbC = document.getElementById("tbCash");
+    if (tbC) tbC.textContent = fmtUsd(p.cash, 0);
+    const tbP = document.getElementById("tbPnl");
+    if (tbP) {
+      tbP.textContent = (p.total_pnl >= 0 ? "+" : "") + fmtUsd(p.total_pnl, 0)
+        + " (" + fmtPct(p.roi_pct) + ")";
+      tbP.className = "tb-v " + cls(p.total_pnl);
+    }
   }
 
   // ---------- positions ----------
@@ -102,8 +113,8 @@
       } else {
         guard = `<span class="guard">arming trail @ +12%</span>`;
       }
-      return `<tr>
-        <td><div class="tok"><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.symbol)}</a>
+      return `<tr class="pos-row" data-coin="${esc(p.address)}" title="Open ${esc(p.symbol)} profile">
+        <td><div class="tok"><span class="link-sym">${esc(p.symbol)}</span>
           <small>${esc((p.entry_reason||"").slice(0,22))} · peak ${fmtPrice(p.peak_price)}</small></div></td>
         <td class="num">${fmtUsd(p.entry_value, 0)}</td>
         <td class="num">${fmtPrice(p.entry_price)}</td>
@@ -482,7 +493,7 @@
       `<div class="chart-frame-wrap"><iframe src="${esc(chartEmbedUrl(chain, addr))}" allow="clipboard-write" loading="lazy"></iframe></div>`;
   }
 
-  function renderCoinProfile(b) {
+  function coinSpecsHtml(b) {
     const t = b.token, d = b.detection, i = b.intel;
     const pc = t.price_change || {}, vol = t.volume || {}, tx = t.txns || {};
     const chgCell = (w) => `<div class="cp-cell"><span class="cp-lbl">${w}</span><span class="${cls(pc[w])}">${fmtPct(pc[w] || 0)}</span></div>`;
@@ -492,7 +503,7 @@
       ? `<span class="rug-bad">⛔ ${label} authority live</span>`
       : (renounced === true ? `<span class="rug-ok">✅ ${label} renounced</span>` : `<span class="mut">${label}: ?</span>`);
     const flags = (d.flags || []).map((f) => `<span class="tag-flag">${f.replace(/_/g, " ")}</span>`).join("");
-    return `<div class="coin-profile">
+    return `
       <div class="cp-top">
         <div class="cp-price">${fmtPrice(t.price_usd)}<span class="cp-age">· ${Math.round(t.age_minutes)}m old</span></div>
         <span class="badge ${esc(d.phase)}">${esc(d.phase)}</span>
@@ -520,12 +531,84 @@
       </div>
       <div class="cp-rug">${auth(t.mint_renounced, "Mint")} ${auth(t.freeze_renounced, "Freeze")}</div>
       ${flags ? `<div class="cp-flags">${flags}</div>` : ""}
-      ${(d.reasons||[]).length ? `<div class="cp-reasons">${esc((d.reasons||[]).slice(0,4).join(" · "))}</div>` : ""}
+      ${(d.reasons||[]).length ? `<div class="cp-reasons">${esc((d.reasons||[]).slice(0,4).join(" · "))}</div>` : ""}`;
+  }
+  function renderCoinProfile(b) {
+    return `<div class="coin-profile">${coinSpecsHtml(b)}
       <div class="cp-actions">
         <button class="btn" onclick="" data-view="chart" id="cpChartBtn">📈 View chart</button>
-        <a class="btn" href="${esc(t.url)}" target="_blank" rel="noopener">DexScreener ↗</a>
+        <a class="btn" href="${esc(b.token.url)}" target="_blank" rel="noopener">DexScreener ↗</a>
+      </div></div>`;
+  }
+  // specs block for a launchpad coin that isn't in the main scan universe
+  function launchpadSpecsHtml(lp) {
+    const pc = lp.price_change || {};
+    const ch = (w) => `<div class="cp-cell"><span class="cp-lbl">${w}</span><span class="${cls(pc[w])}">${fmtPct(pc[w] || 0)}</span></div>`;
+    const flags = (lp.flags || []).map((f) => `<span class="tag-flag">${esc(f.replace(/_/g, " "))}</span>`).join("");
+    const rec = lp.creator_rec;
+    return `
+      <div class="cp-top">
+        <div class="cp-price">${lp.price_usd != null ? fmtPrice(lp.price_usd) : "—"}<span class="cp-age">· ${lp.age_minutes}m old</span></div>
+        <span class="badge ${esc(lp.phase)}">${esc(lp.phase)}</span>
       </div>
-    </div>`;
+      <div class="cp-grid">${ch("m5")}${ch("h1")}${ch("h6")}${ch("h24")}</div>
+      <div class="cp-stats">
+        <div class="cp-stat"><div class="lbl">Liquidity</div><div class="val">${lp.liquidity_usd != null ? fmtCompact(lp.liquidity_usd) : "—"}</div></div>
+        <div class="cp-stat"><div class="lbl">Market cap</div><div class="val">${lp.market_cap != null ? fmtCompact(lp.market_cap) : "—"}</div></div>
+        <div class="cp-stat"><div class="lbl">Vol 1h</div><div class="val">${lp.volume_h1 != null ? fmtCompact(lp.volume_h1) : "—"}</div></div>
+        <div class="cp-stat"><div class="lbl">Buyers seen</div><div class="val">${lp.buyers || 0}</div></div>
+      </div>
+      <div class="prof-section">Launchpad intel</div>
+      <div class="cp-bars"><div class="cp-bar"><span>Moonshot</span>${bar("opp", lp.moonshot)}</div></div>
+      <div class="cp-meta">creator <span class="wallet-link" data-wallet="${esc(lp.creator)}">${esc(lp.creator_short)}</span>
+        ${rec ? `· ${rec.launches}🚀 ${rec.graduated}🎓 ${rec.hit_rate}% hit` : "· new creator"}
+        ${lp.migrated ? '· <span class="rug-ok">graduated 🎓</span>' : ""}</div>
+      ${flags ? `<div class="cp-flags">${flags}</div>` : ""}
+      ${(lp.reasons||[]).length ? `<div class="cp-reasons">${esc(lp.reasons.slice(0,4).join(" · "))}</div>` : ""}`;
+  }
+
+  // Unified coin profile modal: live DexScreener chart + full specs + (if held)
+  // your position with quick-sell. Opened from positions and launchpad coins.
+  function openCoinProfile(addr) {
+    if (!addr) return;
+    const b = boardByAddr(addr);
+    const pos = (lastSnapshot && lastSnapshot.positions || []).find((p) => p.address === addr);
+    const lp = (launchpadData && launchpadData.board || []).find((x) => x.mint === addr);
+    const sym = (b && b.token.symbol) || (pos && pos.symbol) || (lp && lp.symbol) || addr.slice(0, 6);
+    const name = (b && b.token.name) || (pos && pos.name) || (lp && lp.name) || "";
+    const ch = (b && b.token.chain) || chain;
+    const pair = (b && b.token.pair_address) || addr;     // pair preferred; mint works too
+    const url = (b && b.token.url) || (pos && pos.url) || (lp && lp.url) || `https://dexscreener.com/${ch}/${addr}`;
+    const badge = pos
+      ? `<span class="sc-result ${pos.unrealized_pnl >= 0 ? "win" : "loss"}">${fmtPct(pos.unrealized_pnl_pct)}</span>` : "";
+    const posHtml = pos ? `
+      <div class="pos-strip">
+        <div class="ps"><span>Size</span><b>${fmtUsd(pos.entry_value, 0)}</b></div>
+        <div class="ps"><span>Entry</span><b>${fmtPrice(pos.entry_price)}</b></div>
+        <div class="ps"><span>Last</span><b>${fmtPrice(pos.last_price)}</b></div>
+        <div class="ps"><span>P&amp;L</span><b class="${cls(pos.unrealized_pnl)}">${fmtUsd(pos.unrealized_pnl)} <small>(${fmtPct(pos.unrealized_pnl_pct)})</small></b></div>
+        <div class="ps"><span>Peak</span><b>${fmtPrice(pos.peak_price)}</b></div>
+        <div class="ps"><span>Held</span><b>${held(pos.hold_seconds)}</b></div>
+        <div class="ps pos-sell-wrap"><span>Sell</span><span class="sell-btns">
+          <button data-sell="${esc(pos.address)}" data-frac="0.25">25%</button>
+          <button data-sell="${esc(pos.address)}" data-frac="0.5">50%</button>
+          <button data-sell="${esc(pos.address)}" data-frac="1">All</button></span></div>
+      </div>` : "";
+    const specs = b ? `<div class="coin-profile">${coinSpecsHtml(b)}</div>`
+      : lp ? `<div class="coin-profile">${launchpadSpecsHtml(lp)}</div>`
+      : `<div class="cp-reasons">Not in the current scan universe — the live chart below is straight from DexScreener.</div>`;
+    openModal(`
+      <button class="modal-x" data-close>×</button>
+      <div class="prof-head">
+        <div><div class="prof-name">${esc(sym)} ${badge}</div>
+          <div class="prof-sub">${esc((name || "").slice(0, 32))}${pos ? " · your position" : ""}</div></div>
+        <a class="btn" href="${esc(url)}" target="_blank" rel="noopener" style="margin-left:auto">DexScreener ↗</a>
+      </div>
+      <div class="chart-frame-wrap modal-chart"><iframe src="${esc(chartEmbedUrl(ch, pair))}" allow="clipboard-write" loading="lazy"></iframe></div>
+      ${posHtml}
+      ${specs}
+    `, "modal");
+    currentModal = { type: "coin", id: addr };
   }
 
   // ================= WALLETS TAB =================
@@ -824,7 +907,7 @@
       const liq = b.liquidity_usd != null
         ? `${fmtCompact(b.liquidity_usd)}${b.bonding_curve_liq ? "<small class='mut'> bc</small>" : ""}` : "—";
       const sev = b.moonshot >= 70 ? "hot" : b.moonshot >= 55 ? "warm" : "cold";
-      return `<div class="lp-card sev-${sev}">
+      return `<div class="lp-card sev-${sev}" data-coin="${esc(b.mint)}" title="Open ${esc(b.symbol)} profile">
         <div class="lp-top">
           <div class="lp-id">
             <a href="${esc(b.url)}" target="_blank" rel="noopener" class="lp-sym">${esc(b.symbol)}</a>
@@ -1267,6 +1350,13 @@
       }
       const c = e.target.closest("[data-cabal]");
       if (c && c.dataset.cabal) { openCabalProfile(c.dataset.cabal); return; }
+      // whole-card/row coin profile — last, and only when the click wasn't on a
+      // more specific control (link, button, wallet chip, sell button…)
+      const coinEl = e.target.closest("[data-coin]");
+      if (coinEl && coinEl.dataset.coin &&
+          !e.target.closest("a, button, [data-wallet], [data-sell], [data-lpbuy], [data-copy]")) {
+        openCoinProfile(coinEl.dataset.coin); return;
+      }
     };
     document.addEventListener("click", onActivate);
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });

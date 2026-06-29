@@ -128,7 +128,11 @@ auto_trade: true              # let the strategy open/close paper positions
 ## Dashboard
 
 The dashboard has a **left sidebar** to navigate between views, with global
-controls (pause / scan / reset) tucked into the sidebar foot.
+controls (pause / scan / reset) tucked into the sidebar foot. A persistent
+**Equity · Cash · P&L** strip sits in the top-right corner of every tab. Click
+any **open position** (or any **Launchpad coin**) to open a **profile** — the
+live DexScreener chart plus the coin's full specs, and for a held position your
+size / entry / P&L with quick-sell.
 
 ### 💱 Trade
 **Manual paper trading.** Buy any scanned coin (pick from the dropdown or click a
