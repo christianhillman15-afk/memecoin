@@ -57,7 +57,6 @@
   let tradesData = [];
   let chain = "solana";
   let activeTab = "overview";
-  let selectedPair = null;
 
   // ---------- KPI rendering ----------
   function renderKpis(p) {
@@ -598,7 +597,7 @@
     const specs = b ? `<div class="coin-profile">${coinSpecsHtml(b)}</div>`
       : lp ? `<div class="coin-profile">${launchpadSpecsHtml(lp)}</div>`
       : `<div class="cp-reasons">Not in the current scan universe — the live chart below is straight from DexScreener.</div>`;
-    const buyable = !!(b || (lp && lp.price_usd) || pos);
+    const buyable = !!(b || (lp && lp.live) || pos);
     const buyHtml = buyable ? `
       <div class="cp-buy">
         <span class="tf-lbl">${pos ? "Buy more" : "Buy"} (USD)</span>
@@ -1025,6 +1024,7 @@
   function destroyProfileChart() { if (profileChart) { profileChart.destroy(); profileChart = null; } }
   function openModal(html, kind) {
     const root = getModalRoot();
+    destroyProfileChart();   // drop any chart from the modal we're replacing
     root.innerHTML = `<div class="modal-backdrop" data-close></div><div class="modal-panel ${kind}">${html}</div>`;
     root.classList.add("open");
     document.body.classList.add("modal-open");
@@ -1358,7 +1358,7 @@
       const sellEl = e.target.closest("[data-sell]");
       if (sellEl) { e.stopPropagation(); doSell(sellEl.dataset.sell, parseFloat(sellEl.dataset.frac)); return; }
       const amtEl = e.target.closest(".quick-amts button");
-      if (amtEl) { document.getElementById("buyUsd").value = amtEl.dataset.amt; return; }
+      if (amtEl && amtEl.dataset.amt) { document.getElementById("buyUsd").value = amtEl.dataset.amt; return; }
       const gotoEl = e.target.closest("[data-goto]");
       if (gotoEl) { switchTab(gotoEl.dataset.goto); return; }
       const copyEl = e.target.closest("[data-copy]");

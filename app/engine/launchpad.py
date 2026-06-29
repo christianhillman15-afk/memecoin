@@ -247,7 +247,6 @@ class LaunchpadEngine:
             log.warning("spray step failed: %s", e)
 
         # prune snapshot cache for coins no longer tracked
-        live = set(self.ingester.coin(m) is not None for m in self.snaps)  # noqa: F841
         self.snaps = {m: s for m, s in self.snaps.items()
                       if self.ingester.coin(m) is not None}
 
