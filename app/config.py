@@ -73,6 +73,13 @@ class Config:
     creator_traction_liq_usd: float = 18000  # liquidity that counts as a creator "hit"
     creator_traction_vol_usd: float = 25000  # ...or this much 1h volume
 
+    # trade-stream spend guard (only relevant with a funded PUMPPORTAL_API_KEY).
+    # The per-trade stream is metered (~0.01 SOL / 10k events), so instead of
+    # subscribing to every new coin we watch only the strongest few at a time.
+    launchpad_trade_watch_max: int = 15      # hard cap on coins subscribed for trades
+    launchpad_trade_min_score: float = 62    # only watch coins scoring >= this
+    pumpportal_cost_per_10k_sol: float = 0.01  # documented metering rate (for the estimate)
+
     # spray mode — tiny auto paper-bets across early candidates (opt-in; it churns
     # many small positions: "each either explodes or goes to zero")
     spray_enabled: bool = False

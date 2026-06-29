@@ -600,3 +600,15 @@ body.modal-open{overflow:hidden}
 .pos-strip .ps b small{font-size:10.5px;font-weight:600}
 .pos-sell-wrap{margin-left:auto}
 .pos-sell-wrap .sell-btns{margin-top:3px}
+.cp-buy{margin-bottom:12px}
+.cp-buy .tf-lbl{display:block;margin-bottom:5px}
+.cp-buy-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cp-buy-row input{width:90px;background:var(--panel2);border:1px solid var(--border2);border-radius:8px;
+  color:var(--text);padding:9px 10px;font-size:13.5px;font-family:var(--mono);outline:none}
+.cp-buy-row input:focus{border-color:var(--accent)}
+.cp-qa{display:inline-flex;gap:5px}
+.cp-qa button{background:var(--panel2);border:1px solid var(--border2);color:var(--muted);border-radius:7px;
+  padding:7px 10px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:var(--mono)}
+.cp-qa button:hover{border-color:var(--accent);color:var(--text)}
+.cp-buy .btn-buy{padding:9px 18px;font-size:13.5px}
+.cp-buy .trade-msg{margin-top:6px}

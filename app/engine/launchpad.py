@@ -230,6 +230,14 @@ class LaunchpadEngine:
         self.board = board
         self.last_refresh_ts = now()
 
+        # spend guard: only subscribe the per-trade (metered) stream to the few
+        # highest-scoring fresh coins worth attributing buyers on
+        if self.cfg.has_pumpportal_trades:
+            watch = [b["mint"] for b in board
+                     if b["live"] and b["moonshot"] >= self.cfg.launchpad_trade_min_score
+                     and "dumping" not in b["flags"]][: self.cfg.launchpad_trade_watch_max]
+            self.ingester.set_trade_watch(watch)
+
         # manage + open spray bets (paper)
         try:
             self._manage_spray(snap_by_addr)

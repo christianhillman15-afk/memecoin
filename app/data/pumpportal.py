@@ -48,8 +48,9 @@ class PumpPortalIngester:
         self._migrations: deque[dict[str, Any]] = deque(maxlen=200)
         self._creators: dict[str, dict[str, Any]] = {}  # wallet -> track record
         self._buyers: dict[str, dict[str, Any]] = {}    # wallet -> trade-stream record (key only)
-        self._tracked_trades: set[str] = set()          # mints we asked for trades on
+        self._tracked_trades: set[str] = set()          # mints currently subscribed for trades
         self._pending_trade_subs: list[str] = []        # mints awaiting a trade subscription
+        self._pending_trade_unsubs: list[str] = []      # mints awaiting an unsubscribe
 
         self.total_coins_seen = 0
         self.total_migrations = 0
@@ -111,7 +112,7 @@ class PumpPortalIngester:
                         if not self._running:
                             break
                         self._handle(raw)
-                        if self._pending_trade_subs:
+                        if self._pending_trade_subs or self._pending_trade_unsubs:
                             await self._flush_trade_subs(ws)
             except asyncio.CancelledError:
                 break
@@ -120,6 +121,11 @@ class PumpPortalIngester:
             finally:
                 self.connected = False
                 self._ws = None
+                # trade subscriptions live on the (now-dead) connection; drop our
+                # record so the next set_trade_watch() re-subscribes on the new one
+                self._tracked_trades.clear()
+                self._pending_trade_subs.clear()
+                self._pending_trade_unsubs.clear()
             if self._running:
                 await asyncio.sleep(backoff)
                 backoff = min(60.0, backoff * 2)
@@ -171,10 +177,9 @@ class PumpPortalIngester:
         self.last_event_ts = rec["created_at"]
         self._bump_creator(creator, mint)
         self._evict()
-        # queue a trade subscription (only sent when a funded key is present);
-        # the async WS loop flushes the queue so we never await from here
-        if self.cfg.has_pumpportal_trades and mint not in self._tracked_trades:
-            self._pending_trade_subs.append(mint)
+        # NB: we do NOT subscribe to this coin's trades here. The per-trade stream
+        # is metered, so the launchpad engine decides which (few, high-score) coins
+        # are worth watching via set_trade_watch() — that's the spend guard.
 
     def _on_migrate(self, m: dict[str, Any]) -> None:
         mint = m.get("mint")
@@ -244,16 +249,39 @@ class PumpPortalIngester:
             self._buyers.pop(w, None)
 
     async def _flush_trade_subs(self, ws: Any) -> None:
-        """Send queued token-trade subscriptions in one batched message."""
-        keys = [m for m in self._pending_trade_subs[:80] if m not in self._tracked_trades]
+        """Send queued token-trade (un)subscriptions in batched messages."""
+        subs = self._pending_trade_subs[:80]
         self._pending_trade_subs = self._pending_trade_subs[80:]
-        if not keys:
-            return
+        unsubs = self._pending_trade_unsubs[:80]
+        self._pending_trade_unsubs = self._pending_trade_unsubs[80:]
         try:
-            await ws.send(json.dumps({"method": "subscribeTokenTrade", "keys": keys}))
-            self._tracked_trades.update(keys)
-        except Exception:  # noqa: BLE001 — will retry on the next create
+            if subs:
+                await ws.send(json.dumps({"method": "subscribeTokenTrade", "keys": subs}))
+            if unsubs:
+                await ws.send(json.dumps({"method": "unsubscribeTokenTrade", "keys": unsubs}))
+        except Exception:  # noqa: BLE001 — will retry on the next event
             pass
+
+    def set_trade_watch(self, mints: list[str]) -> None:
+        """Spend guard: subscribe to trades for exactly this set of (high-score)
+        coins and unsubscribe from any we were watching that fell out. Capped at
+        ``launchpad_trade_watch_max`` so the metered stream can't run away.
+
+        Only meaningful with a funded key; a no-op otherwise.
+        """
+        if not self.cfg.has_pumpportal_trades:
+            return
+        desired = list(dict.fromkeys(mints))[: self.cfg.launchpad_trade_watch_max]
+        desired_set = set(desired)
+        to_add = [m for m in desired if m not in self._tracked_trades]
+        to_drop = [m for m in self._tracked_trades if m not in desired_set]
+        if not to_add and not to_drop:
+            return
+        self._tracked_trades = desired_set
+        if to_add:
+            self._pending_trade_subs.extend(to_add)
+        if to_drop:
+            self._pending_trade_unsubs.extend(to_drop)
 
     # --- creator track records ------------------------------------------- #
     def _bump_creator(self, wallet: str, mint: str) -> None:
@@ -397,6 +425,10 @@ class PumpPortalIngester:
             "creators_known": len(self._creators),
             "buyers_known": len(self._buyers),
             "trade_stream": self.cfg.has_pumpportal_trades,
+            "trade_watch": len(self._tracked_trades),
+            "trade_watch_max": self.cfg.launchpad_trade_watch_max,
+            "est_sol_spent": round(
+                self.total_trades / 10000.0 * self.cfg.pumpportal_cost_per_10k_sol, 4),
             "last_event_ts": self.last_event_ts,
         }
 

@@ -337,6 +337,7 @@
         <div class="prof-av ${win ? "win" : "loss"}">${win ? "✓" : "✕"}</div>
         <div><div class="prof-name">${esc(t.symbol)} <span class="sc-result ${win ? "win" : "loss"}">${win ? "WIN" : "LOSS"}</span></div>
           <div class="prof-sub">${esc((t.name || "").slice(0, 28))} ${kindBadge}</div></div>
+        <button class="btn" data-openchart="${esc(t.address)}" style="margin-left:auto">📈 Live chart &amp; specs</button>
       </div>
       <div class="prof-stats">
         <div class="pstat"><div class="lbl">P&amp;L</div><div class="val ${cls(t.pnl)}">${(t.pnl >= 0 ? "+" : "") + fmtUsd(t.pnl)}</div></div>
@@ -597,6 +598,20 @@
     const specs = b ? `<div class="coin-profile">${coinSpecsHtml(b)}</div>`
       : lp ? `<div class="coin-profile">${launchpadSpecsHtml(lp)}</div>`
       : `<div class="cp-reasons">Not in the current scan universe — the live chart below is straight from DexScreener.</div>`;
+    const buyable = !!(b || (lp && lp.price_usd) || pos);
+    const buyHtml = buyable ? `
+      <div class="cp-buy">
+        <span class="tf-lbl">${pos ? "Buy more" : "Buy"} (USD)</span>
+        <div class="cp-buy-row">
+          <input id="cpBuyUsd" type="number" min="1" step="10" value="50" />
+          <span class="quick-amts cp-qa">
+            <button data-cpamt="50">$50</button><button data-cpamt="100">$100</button>
+            <button data-cpamt="250">$250</button>
+          </span>
+          <button class="btn btn-buy" data-cpbuy="${esc(addr)}" data-sym="${esc(sym)}">Buy</button>
+        </div>
+        <div id="cpBuyMsg" class="trade-msg"></div>
+      </div>` : "";
     openModal(`
       <button class="modal-x" data-close>×</button>
       <div class="prof-head">
@@ -606,9 +621,22 @@
       </div>
       <div class="chart-frame-wrap modal-chart"><iframe src="${esc(chartEmbedUrl(ch, pair))}" allow="clipboard-write" loading="lazy"></iframe></div>
       ${posHtml}
+      ${buyHtml}
       ${specs}
     `, "modal");
     currentModal = { type: "coin", id: addr };
+  }
+  async function doCoinBuy(addr, sym) {
+    const inp = document.getElementById("cpBuyUsd");
+    const msg = document.getElementById("cpBuyMsg");
+    const usd = parseFloat(inp && inp.value) || 0;
+    const say = (t, k) => { if (msg) { msg.textContent = t; msg.className = "trade-msg " + (k || ""); } };
+    if (!usd || usd <= 0) return say("Enter a USD amount.", "err");
+    say("Buying…");
+    const r = await fetch("/api/trade/buy", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ address: addr, usd }) }).then((x) => x.json()).catch(() => null);
+    if (r && r.ok) { say(`✅ Bought ${sym} for ${fmtUsd(usd, 0)}`, "ok"); refreshNow(); }
+    else say("⚠️ " + ((r && r.error) || "Buy failed — coin may not be enriched yet; try again shortly."), "err");
   }
 
   // ================= WALLETS TAB =================
@@ -865,7 +893,9 @@
       </div>`;
       return;
     }
-    if (hint) hint.textContent = `${(stats.buyers_known||0).toLocaleString()} seen · ${(stats.trades_seen||0).toLocaleString()} trades`;
+    if (hint) hint.textContent =
+      `${(stats.buyers_known||0).toLocaleString()} seen · watching ${stats.trade_watch||0}/${stats.trade_watch_max||0} · ` +
+      `${(stats.trades_seen||0).toLocaleString()} events · ~${(stats.est_sol_spent||0).toFixed(3)} ◎ metered`;
     if (!list.length) {
       el.innerHTML = `<div class="empty">Watching trades — smart buyers appear as their coins start winning.</div>`;
       return;
@@ -1222,13 +1252,11 @@
     if (el) el.addEventListener(id === "specSearch" ? "input" : "change", applySpecFilters);
   });
 
-  // board row (Trade tab) → load coin into the buy box
+  // opportunity-scanner row (Trade tab) → open the coin profile (chart + specs + buy)
   document.querySelector("#boardTable tbody").addEventListener("click", (e) => {
     const tr = e.target.closest("tr[data-addr]");
     if (!tr || !tr.dataset.addr) return;
-    const sel = document.getElementById("buyCoin");
-    if (sel) { sel.value = tr.dataset.addr; document.getElementById("buyUsd").focus(); }
-    setTradeMsg("Loaded into the buy box — set an amount and Buy.", true);
+    openCoinProfile(tr.dataset.addr);
   });
   // manual trade controls
   document.getElementById("buyBtn").addEventListener("click", doBuy);
@@ -1337,6 +1365,12 @@
       if (copyEl) { if (navigator.clipboard) navigator.clipboard.writeText(copyEl.dataset.copy); return; }
       const lpBuyEl = e.target.closest("[data-lpbuy]");
       if (lpBuyEl) { e.stopPropagation(); doLaunchpadBuy(lpBuyEl.dataset.lpbuy, lpBuyEl.dataset.sym); return; }
+      const cpAmtEl = e.target.closest("[data-cpamt]");
+      if (cpAmtEl) { const i = document.getElementById("cpBuyUsd"); if (i) i.value = cpAmtEl.dataset.cpamt; return; }
+      const cpBuyEl = e.target.closest("[data-cpbuy]");
+      if (cpBuyEl) { e.stopPropagation(); doCoinBuy(cpBuyEl.dataset.cpbuy, cpBuyEl.dataset.sym); return; }
+      const ocEl = e.target.closest("[data-openchart]");
+      if (ocEl && ocEl.dataset.openchart) { openCoinProfile(ocEl.dataset.openchart); return; }
       const tradeEl = e.target.closest("[data-trade]");
       if (tradeEl && !e.target.closest("[data-wallet]")) { openTradeProfile(tradeEl.dataset.trade); return; }
       const w = e.target.closest("[data-wallet]");

@@ -176,6 +176,58 @@ def test_buyers_empty_without_key_flag():
 
 
 # --------------------------------------------------------------------------- #
+# Trade-stream spend guard
+# --------------------------------------------------------------------------- #
+def _keyed_ing(watch_max=3):
+    cfg = Config()
+    cfg.pumpportal_api_key = "fake"
+    cfg.launchpad_trade_watch_max = watch_max
+    return PumpPortalIngester(cfg)
+
+
+def test_set_trade_watch_noop_without_key():
+    ing = _ing()  # no key
+    ing.set_trade_watch(["A", "B", "C"])
+    assert ing._tracked_trades == set()
+    assert ing._pending_trade_subs == []
+
+
+def test_set_trade_watch_caps_and_subscribes():
+    ing = _keyed_ing(watch_max=3)
+    ing.set_trade_watch(["A", "B", "C", "D", "E"])   # 5 desired, cap 3
+    assert ing._tracked_trades == {"A", "B", "C"}
+    assert set(ing._pending_trade_subs) == {"A", "B", "C"}
+    assert "D" not in ing._tracked_trades and "E" not in ing._tracked_trades
+
+
+def test_set_trade_watch_diffs_add_and_drop():
+    ing = _keyed_ing(watch_max=5)
+    ing.set_trade_watch(["A", "B", "C"])
+    ing._pending_trade_subs.clear()                  # pretend they were flushed
+    ing.set_trade_watch(["B", "C", "D"])             # A drops, D joins
+    assert ing._tracked_trades == {"B", "C", "D"}
+    assert ing._pending_trade_subs == ["D"]
+    assert ing._pending_trade_unsubs == ["A"]
+
+
+def test_set_trade_watch_stable_is_noop():
+    ing = _keyed_ing(watch_max=5)
+    ing.set_trade_watch(["A", "B"])
+    ing._pending_trade_subs.clear()
+    ing.set_trade_watch(["A", "B"])                  # unchanged
+    assert ing._pending_trade_subs == [] and ing._pending_trade_unsubs == []
+
+
+def test_cost_estimate_in_stats():
+    ing = _keyed_ing()
+    for i in range(10000):
+        ing._on_trade({"txType": "buy", "mint": "M", "traderPublicKey": f"w{i}", "solAmount": 1})
+    st = ing.stats()
+    assert st["est_sol_spent"] == pytest.approx(0.01, abs=1e-6)  # 10k events @ 0.01/10k
+    assert st["trade_watch_max"] == ing.cfg.launchpad_trade_watch_max
+
+
+# --------------------------------------------------------------------------- #
 # Spray paper trading (engine driven directly, no network)
 # --------------------------------------------------------------------------- #
 class _StubDex:
