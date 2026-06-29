@@ -1,11 +1,11 @@
-# Deploying MemeRadar on DigitalOcean
+# Deploying Trenchr on DigitalOcean
 
 A memecoin scanner is most useful running **24/7** — always scanning, building
 its equity curve, and catching pumps while you're away. The easiest robust way
 to do that is a small **DigitalOcean Droplet running Docker Compose** with a
 persistent data volume.
 
-> **Why a Droplet and not App Platform?** MemeRadar keeps its trade history /
+> **Why a Droplet and not App Platform?** Trenchr keeps its trade history /
 > equity curve in a SQLite file. DO **App Platform** has an *ephemeral*
 > filesystem, so that history resets on every deploy/restart. A Droplet with a
 > mounted volume keeps it. (An App Platform spec is included at
@@ -77,7 +77,7 @@ Then open **http://localhost:8000**. The bot runs on the server; the tunnel just
 forwards the dashboard to you. Nothing is exposed publicly.
 
 #### 5c. Public HTTPS with a login (recommended for "check it from my phone")
-1. Point a DNS **A-record** (e.g. `memeradar.yourdomain.com`) at the Droplet IP.
+1. Point a DNS **A-record** (e.g. `trenchr.yourdomain.com`) at the Droplet IP.
 2. Edit [`Caddyfile`](Caddyfile): set your domain and a password hash:
    ```bash
    docker run --rm caddy caddy hash-password --plaintext 'your-strong-password'
@@ -88,7 +88,7 @@ forwards the dashboard to you. Nothing is exposed publicly.
    docker compose --profile proxy up -d --build
    ```
    Caddy fetches a free Let's Encrypt certificate automatically and serves the
-   dashboard at **https://memeradar.yourdomain.com** behind a login.
+   dashboard at **https://trenchr.yourdomain.com** behind a login.
 
 ### 6. DigitalOcean Cloud Firewall (do this for any public exposure)
 Networking → Firewalls → Create:
@@ -107,8 +107,8 @@ docker compose up -d --build          # add --profile proxy if you use Caddy
 ### Useful commands
 ```bash
 docker compose ps                      # status + health
-docker compose logs -f memeradar       # live logs
-docker compose restart memeradar       # restart the bot
+docker compose logs -f trenchr       # live logs
+docker compose restart trenchr       # restart the bot
 docker compose down                    # stop (data volume is preserved)
 ```
 
@@ -137,4 +137,4 @@ redeploys automatically on every push to the branch.
       port 8000 directly without a firewall.
 - [ ] DigitalOcean Cloud Firewall restricts SSH to your IP.
 - [ ] Remember: this is **paper trading**. No keys with real funds are ever
-      needed or used by MemeRadar.
+      needed or used by Trenchr.

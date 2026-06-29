@@ -20,7 +20,7 @@ import httpx
 
 from ..config import Config
 
-log = logging.getLogger("memeradar.onchain")
+log = logging.getLogger("trenchr.onchain")
 
 PUBLIC_RPC = "https://api.mainnet-beta.solana.com"
 
@@ -58,7 +58,7 @@ class OnchainSafety:
             return
         try:
             r = await self._client.post(self.rpc, json={
-                "jsonrpc": "2.0", "id": "memeradar", "method": "getMultipleAccounts",
+                "jsonrpc": "2.0", "id": "trenchr", "method": "getMultipleAccounts",
                 "params": [mints, {"encoding": "jsonParsed"}]})
             r.raise_for_status()
             values = (r.json().get("result") or {}).get("value") or []

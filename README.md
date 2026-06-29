@@ -1,4 +1,4 @@
-# MemeRadar 📡
+# Trenchr 📡
 
 **A paper-trading bot that hunts Solana memecoin pumps, flags pump-and-dumps,
 tracks whale / insider wallets, and sells *before* the dump — all on a live,
@@ -14,7 +14,7 @@ professional dashboard. Starts with a $10,000 paper bankroll. No real money.**
 
 ## What it does
 
-| Goal you asked for | How MemeRadar does it |
+| Goal you asked for | How Trenchr does it |
 |---|---|
 | **Find coins about to pump** | Scans trending Solana memecoins and scores each with a **pump score** (price acceleration + volume surge + buy/sell imbalance + youth). |
 | **Flag pump & dumps** | A **dump-risk** score detects distribution: rollovers after a run, rising sell pressure, volume fading at the highs. Tokens are labelled by **market phase** (accumulation → markup → distribution → dump). |
@@ -92,7 +92,7 @@ inflow — and never while a confirmed coordinated sell is active.
 
 **Cabal-buy** is a second entry path: when a **known cabal** (a recurring group)
 has ≥ N members buy the *same* coin inside a window **and** the coin clears a
-quality gate (safety, dump-risk, not distributing), MemeRadar opens a position
+quality gate (safety, dump-risk, not distributing), Trenchr opens a position
 and records *which* cabal and wallets triggered it (shown in **Trade Specs**).
 Tunable in `config.yaml` (`cabal_buy_*`); respects Pause and the position cap.
 
@@ -209,7 +209,7 @@ into with one click.
 ### 📈 Live Charts
 Every scanned coin gets a **profile** (full DexScreener stats — price, all
 change/volume windows, txns, liquidity/mcap/FDV, age, rug-authority status —
-plus MemeRadar's pump/dump/safety/opportunity scores and reasons) with a toggle
+plus Trenchr's pump/dump/safety/opportunity scores and reasons) with a toggle
 to the **full DexScreener chart** (TradingView-powered candles, timeframes,
 indicators). Each coin in the list has a 📈 button to jump straight to its
 chart, or paste any pair/token address.

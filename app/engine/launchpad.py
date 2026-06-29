@@ -22,7 +22,7 @@ from ..data.dexscreener import DexScreenerClient
 from ..data.pumpportal import PUMP_TOTAL_SUPPLY, PumpPortalIngester
 from ..models import Signal, TokenSnapshot, now
 
-log = logging.getLogger("memeradar.launchpad")
+log = logging.getLogger("trenchr.launchpad")
 
 WSOL_MINT = "So11111111111111111111111111111111111111112"
 

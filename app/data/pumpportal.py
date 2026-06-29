@@ -31,7 +31,7 @@ import websockets
 from ..config import Config
 from ..models import now
 
-log = logging.getLogger("memeradar.pumpportal")
+log = logging.getLogger("trenchr.pumpportal")
 
 WS_URL = "wss://pumpportal.fun/api/data"
 # pump.fun total supply is fixed at 1,000,000,000 tokens

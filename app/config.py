@@ -9,7 +9,7 @@ from typing import Any
 
 import yaml
 
-log = logging.getLogger("memeradar.config")
+log = logging.getLogger("trenchr.config")
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = ROOT / "config.yaml"
 

@@ -30,7 +30,7 @@ def cmd_status(scanner, db, cfg, args) -> str:
     s = scanner.snapshot()
     st, p = s["status"], s["portfolio"]
     health = "⏸ paused" if st["paused"] else ("🟢 running" if st["running"] else "🔴 stopped")
-    out = [f"<b>MemeRadar</b> — {health}"]
+    out = [f"<b>Trenchr</b> — {health}"]
     if st.get("last_error"):
         out.append(f"⚠️ <b>ERROR:</b> {h(st['last_error'])}")
     out.append(f"scan #{st['scan_count']} · {rel_time(st.get('last_scan_ts', 0))}"

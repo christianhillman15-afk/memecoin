@@ -21,7 +21,7 @@ import yaml
 from ..config import Config
 from ..models import TokenSnapshot, now
 
-log = logging.getLogger("memeradar.influencers")
+log = logging.getLogger("trenchr.influencers")
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 _B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"

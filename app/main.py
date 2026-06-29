@@ -82,7 +82,7 @@ def create_app() -> FastAPI:
             try:
                 await bot.start()
             except Exception:  # noqa: BLE001
-                logging.getLogger("memeradar.telegram").exception("Telegram start failed")
+                logging.getLogger("trenchr.telegram").exception("Telegram start failed")
         yield
         if bot:
             try:
@@ -92,7 +92,7 @@ def create_app() -> FastAPI:
         await scanner.stop()
         db.close()
 
-    app = FastAPI(title="MemeRadar", version="1.0.0", lifespan=lifespan)
+    app = FastAPI(title="Trenchr", version="1.0.0", lifespan=lifespan)
     app.state.cfg = cfg
     app.state.db = db
     app.state.scanner = scanner
@@ -101,7 +101,7 @@ def create_app() -> FastAPI:
     if cfg.auth_enabled:
         app.add_middleware(SessionAuthMiddleware, verify=verify_session,
                            enabled=True)
-        logging.getLogger("memeradar").info("Dashboard login enabled (password only)")
+        logging.getLogger("trenchr").info("Dashboard login enabled (password only)")
 
     @app.get("/login")
     async def login_get(error: int = 0) -> HTMLResponse:

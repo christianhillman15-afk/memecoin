@@ -15,7 +15,7 @@ from typing import Any
 
 import httpx
 
-log = logging.getLogger("memeradar.telegram.api")
+log = logging.getLogger("trenchr.telegram.api")
 
 
 def _ca_bundle() -> Any:

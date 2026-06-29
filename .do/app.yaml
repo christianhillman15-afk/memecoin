@@ -10,7 +10,7 @@
 # (which mounts a persistent volume). Use this spec if you don't mind the book
 # resetting on redeploys, or wire up an attached database in a future revision.
 
-name: memeradar
+name: trenchr
 region: nyc
 services:
   - name: web

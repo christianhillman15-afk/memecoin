@@ -6,7 +6,7 @@ import logging
 from ..config import Config
 from .bot import TelegramBot
 
-log = logging.getLogger("memeradar.telegram")
+log = logging.getLogger("trenchr.telegram")
 
 
 def build_telegram_bot(cfg: Config, scanner, db) -> "TelegramBot | None":

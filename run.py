@@ -15,7 +15,7 @@ from app.config import load_config
 def main() -> None:
     cfg = load_config()
     print("=" * 64)
-    print("  MemeRadar — Solana memecoin pump/dump paper-trading bot")
+    print("  Trenchr — Solana memecoin pump/dump paper-trading bot")
     print("=" * 64)
     print(f"  Bankroll      : ${cfg.starting_balance_usd:,.0f} (paper)")
     print(f"  Chain         : {cfg.chain}")

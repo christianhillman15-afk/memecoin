@@ -1,4 +1,4 @@
-# MemeRadar — Detection Strategy & Domain Knowledge
+# Trenchr — Detection Strategy & Domain Knowledge
 
 This is the playbook the bot is built around: how Solana memecoin pump-and-dumps
 actually work, how to spot insider / whale / smart-money / cabal wallets, the
@@ -54,7 +54,7 @@ gates first. Survivorship is the whole game.
 | Distribution | big h6 run **but** m5/h1 rolling over, sell txns rising, volume fading at highs |
 | Dump | sharp negative m5/h1 after a run, sell-dominated, liquidity dropping |
 
-MemeRadar's `detector.py` encodes exactly these into `pump_score`, `dump_risk`
+Trenchr's `detector.py` encodes exactly these into `pump_score`, `dump_risk`
 and a `phase` label.
 
 ---
@@ -76,7 +76,7 @@ warehouses" (insider clusters).** **[verified]** [S3]
 | **Smart money** | consistently profitable trader (see §4) |
 | **Cabal** | a coordinated group that repeatedly enters and **dumps the same coins together** |
 
-MemeRadar's **Wallets tab** maps onto this directly: whales, insiders, smart
+Trenchr's **Wallets tab** maps onto this directly: whales, insiders, smart
 money, pump-&-dump actors, and **cabal groups** (detected by repeated co-dumping,
 which is the behavioural definition of a "rat warehouse"/cabal).
 
@@ -92,7 +92,7 @@ which is the behavioural definition of a "rat warehouse"/cabal).
 
 **Operational definition the bot uses:** a wallet is "smart money" if its
 **win rate ≥ ~55–60%** *and* it is **net profitable** (positive realized PnL).
-MemeRadar's `smart_money_min_winrate` config (default `0.55`) implements this;
+Trenchr's `smart_money_min_winrate` config (default `0.55`) implements this;
 the Wallets tab's "Smart money" category requires win-rate ≥ threshold **and**
 positive net flow.
 
@@ -120,7 +120,7 @@ threshold survived verification it's marked; otherwise it's a community standard
 | **Liquidity floor** | below a few-$k of liquidity | thin pools = rug-prone; recall only ~97k of 7M ever cleared $1k. **[verified base rate]** [S1] |
 | **Volume/liquidity ratio** | extremely high churn | wash-trading / hot-potato. **[heuristic]** |
 
-**Status in MemeRadar:** liquidity floor, churn, supply-overhang (liq/FDV), and
+**Status in Trenchr:** liquidity floor, churn, supply-overhang (liq/FDV), and
 age gates are live in `detector.py`. Mint/freeze-authority and LP-burn checks are
 the highest-value *next* upgrade — they're readable **for free** from the public
 Solana RPC (validated: `getAccountInfo` returns mint/freeze authority; batchable
@@ -147,15 +147,15 @@ patterns (community **[heuristic]**, encoded in `strategy.py`):
 
 1. **Scale out / take-profit ladder.** Sell tranches into strength (e.g. take
    1/3 at +50–100%, more at +200%+) so you bank profit and "play with house
-   money." MemeRadar uses a take-profit target + trailing stop today; a tranche
+   money." Trenchr uses a take-profit target + trailing stop today; a tranche
    ladder is a natural enhancement.
-2. **Trailing stop.** Once in profit, cap give-back from the peak (MemeRadar:
+2. **Trailing stop.** Once in profit, cap give-back from the peak (Trenchr:
    arm at +12%, trail 14% off the high). This is the core "sell before the
    crash" mechanism.
 3. **Hard stop-loss.** Non-negotiable floor for capital preservation.
 4. **Detect coordinated/insider selling early.** When multiple tracked
    smart/insider wallets (a cabal) sell the *same* token in a short window,
-   exit immediately — this is MemeRadar's **confirmed multi-wallet-sell** gate
+   exit immediately — this is Trenchr's **confirmed multi-wallet-sell** gate
    ("only act when you know for sure": ≥N distinct smart wallets, ≥$X combined).
 5. **Phase/momentum reversal.** Exit when the detector flips a held position to
    `distribution`/`dump` with negative momentum while you're up.

@@ -31,7 +31,7 @@ import httpx
 from ..config import Config
 from ..models import TokenSnapshot, WalletEvent, now
 
-log = logging.getLogger("memeradar.wallets")
+log = logging.getLogger("trenchr.wallets")
 
 _B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
@@ -232,7 +232,7 @@ class HeliusWalletProvider:
     async def _rpc_call(self, method: str, params: list[Any]) -> Any:
         try:
             r = await self._client.post(self._rpc, json={
-                "jsonrpc": "2.0", "id": "memeradar", "method": method, "params": params})
+                "jsonrpc": "2.0", "id": "trenchr", "method": method, "params": params})
             r.raise_for_status()
             return r.json().get("result")
         except (httpx.HTTPError, ValueError) as e:

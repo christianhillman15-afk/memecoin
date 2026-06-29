@@ -14,7 +14,7 @@ from ..config import Config
 from ..database import Database
 from ..models import PortfolioState, Position, Trade, TokenSnapshot, now
 
-log = logging.getLogger("memeradar.trader")
+log = logging.getLogger("trenchr.trader")
 
 
 class PaperTrader:

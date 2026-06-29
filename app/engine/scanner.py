@@ -32,7 +32,7 @@ from .paper_trader import PaperTrader
 from .strategy import evaluate_entry, evaluate_exit, update_trailing
 from .wallet_intel import WalletIntel
 
-log = logging.getLogger("memeradar.scanner")
+log = logging.getLogger("trenchr.scanner")
 
 
 def cabal_buy_decision(bundle: dict[str, Any], det: Optional[dict[str, Any]],

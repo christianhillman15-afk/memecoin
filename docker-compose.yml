@@ -1,4 +1,4 @@
-# MemeRadar — Docker Compose for a DigitalOcean Droplet (or any Docker host).
+# Trenchr — Docker Compose for a DigitalOcean Droplet (or any Docker host).
 #
 #   cp .env.example .env      # set DASHBOARD_PASSWORD (and optionally HELIUS_API_KEY)
 #   docker compose up -d --build
@@ -15,10 +15,10 @@
 # AND restrict access with a DigitalOcean Cloud Firewall.
 
 services:
-  memeradar:
+  trenchr:
     build: .
-    image: memeradar:latest
-    container_name: memeradar
+    image: trenchr:latest
+    container_name: trenchr
     restart: unless-stopped
     env_file:
       - path: .env
@@ -40,11 +40,11 @@ services:
   # Edit Caddyfile first (set your domain + a bcrypt password hash).
   caddy:
     image: caddy:2
-    container_name: memeradar-caddy
+    container_name: trenchr-caddy
     restart: unless-stopped
     profiles: ["proxy"]
     depends_on:
-      - memeradar
+      - trenchr
     ports:
       - "80:80"
       - "443:443"

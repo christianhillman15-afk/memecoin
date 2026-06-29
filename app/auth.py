@@ -21,7 +21,7 @@ SESSION_TTL = 30 * 24 * 3600  # 30 days
 
 def make_session(password: str) -> tuple[Callable[[], str], Callable[[str], bool]]:
     """Return (issue, verify) bound to a key derived from the password."""
-    key = hashlib.sha256(("memeradar-session-v1:" + password).encode()).digest()
+    key = hashlib.sha256(("trenchr-session-v1:" + password).encode()).digest()
 
     def _sig(expiry: int) -> str:
         return hmac.new(key, str(expiry).encode(), hashlib.sha256).hexdigest()
@@ -97,7 +97,7 @@ def login_page(error: bool = False) -> str:
     msg = ('<p class="err">Incorrect password</p>' if error else "")
     return f"""<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MemeRadar — Login</title><style>
+<title>Trenchr — Login</title><style>
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{height:100vh;display:grid;place-items:center;font-family:-apple-system,
 BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
@@ -114,7 +114,7 @@ button{{width:100%;background:linear-gradient(135deg,#19e3a4,#37d6d6);color:#041
 border-radius:9px;padding:12px;font-size:14px;font-weight:700;cursor:pointer}}
 button:hover{{opacity:.92}} .err{{color:#ff5267;font-size:12.5px;margin-bottom:12px}}
 </style></head><body><div class="card">
-<div class="logo">◎</div><h1>MemeRadar</h1>
+<div class="logo">◎</div><h1>Trenchr</h1>
 <p class="sub">Enter password to access the desk</p>{msg}
 <form method="POST" action="/login">
 <input type="password" name="password" placeholder="Password" autofocus autocomplete="current-password">

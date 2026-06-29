@@ -17,7 +17,7 @@ import httpx
 
 from ..models import TokenSnapshot
 
-log = logging.getLogger("memeradar.dexscreener")
+log = logging.getLogger("trenchr.dexscreener")
 
 BASE = "https://api.dexscreener.com"
 
@@ -43,7 +43,7 @@ class DexScreenerClient:
             trust_env=True,
             verify=_ca_bundle(),
             timeout=timeout,
-            headers={"Accept": "application/json", "User-Agent": "MemeRadar/1.0"},
+            headers={"Accept": "application/json", "User-Agent": "Trenchr/1.0"},
         )
 
     async def close(self) -> None:

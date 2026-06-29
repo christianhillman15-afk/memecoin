@@ -21,7 +21,7 @@ from . import commands as cmd_mod
 from .api import TelegramAPI, TelegramAPIError
 from .format import h
 
-log = logging.getLogger("memeradar.telegram")
+log = logging.getLogger("trenchr.telegram")
 
 CONTROL_COMMANDS = {"pause", "resume", "scan", "reset"}
 MAX_MSG = 4096
@@ -65,7 +65,7 @@ class TelegramBot:
         self._stopped = False
         self._poll_task = asyncio.create_task(self._poll_loop())
         self._dispatch_task = asyncio.create_task(self._dispatch_loop())
-        await self._broadcast("✅ <b>MemeRadar</b> bot online. /help for commands.",
+        await self._broadcast("✅ <b>Trenchr</b> bot online. /help for commands.",
                               silent=True)
 
     async def stop(self) -> None:
@@ -276,7 +276,7 @@ class TelegramBot:
             role = "admin" if chat_id in self.cfg.telegram_admin_chat_ids else "reader"
             st = self.scanner.snapshot()["status"]
             await self._send(chat_id,
-                f"👋 <b>MemeRadar</b> — you are recognized (<b>{role}</b>).\n"
+                f"👋 <b>Trenchr</b> — you are recognized (<b>{role}</b>).\n"
                 f"Desk {'paused' if st['paused'] else 'running'} · scan #{st['scan_count']}"
                 f" · {h(st['chain'])}.\n/help for commands.")
         else:
@@ -289,7 +289,7 @@ class TelegramBot:
                     "it to <code>TELEGRAM_CHAT_IDS</code>.")
 
     def _help_text(self, is_admin: bool) -> str:
-        lines = ["<b>MemeRadar commands</b>"]
+        lines = ["<b>Trenchr commands</b>"]
         for usage, desc, control in cmd_mod.HELP:
             if control and not is_admin:
                 continue

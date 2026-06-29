@@ -1,4 +1,4 @@
-/* MemeRadar dashboard client */
+/* Trenchr dashboard client */
 (() => {
   "use strict";
 
@@ -527,7 +527,7 @@
         <div class="cp-stat"><div class="lbl">Vol 24h</div><div class="val">${fmtCompact(vol.h24 || 0)}</div></div>
       </div>
       <div class="cp-grid">${volCell("m5")}${volCell("h1")}${volCell("h6")}${txW("h1")}</div>
-      <div class="prof-section">MemeRadar intel</div>
+      <div class="prof-section">Trenchr intel</div>
       <div class="cp-bars">
         <div class="cp-bar"><span>Pump</span>${bar("pump", d.pump_score)}</div>
         <div class="cp-bar"><span>Dump risk</span>${bar("dump", d.dump_risk)}</div>
