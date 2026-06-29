@@ -49,6 +49,17 @@ loadout_max_age_minutes: 1440  # "fresh" = launched within ~24h (1440 min)
 loadout_min_score: 45          # 0-100; minimum loadout score to surface a coin
 loadout_ttl_seconds: 240       # drop a loadout if not re-confirmed within this
 
+# --- Cabal-buy: follow coordinated groups into a coin ------------------------
+# When a known cabal (or N coordinated wallets) all buy the SAME coin inside a
+# window, and the coin passes a quality gate, open a paper position. Driven by
+# the bundling/cabal detector. Respects the global Pause and the position cap.
+cabal_buy_enabled: true
+cabal_buy_min_wallets: 3       # how many wallets must buy together
+cabal_buy_window_seconds: 1200 # ...inside this window (1200s = 20 min)
+cabal_buy_require_cabal: true  # only a known recurring cabal counts (not any bundle)
+cabal_buy_min_safety: 50       # coin must clear this structural-safety score
+cabal_buy_max_dump_risk: 55    # ...and not already be distributing
+
 # --- Launchpad: catch pump.fun coins in their first minutes -------------------
 # Streams every brand-new pump.fun coin (free PumpPortal websocket), enriches it
 # with live DexScreener data, and scores its "moonshot" potential. Also tracks

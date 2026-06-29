@@ -35,6 +35,32 @@ from .wallet_intel import WalletIntel
 log = logging.getLogger("memeradar.scanner")
 
 
+def cabal_buy_decision(bundle: dict[str, Any], det: Optional[dict[str, Any]],
+                       cfg: Config) -> tuple[bool, str]:
+    """Should we follow a coordinated cabal pile-in into this coin? Pure.
+
+    ``bundle`` is a row from WalletIntel.bundles(); ``det`` is the coin's
+    detection dict (or None if it isn't on the current board).
+    """
+    if not cfg.cabal_buy_enabled:
+        return False, "cabal-buy disabled"
+    if int(bundle.get("wallet_count", 0)) < cfg.cabal_buy_min_wallets:
+        return False, "too few wallets"
+    if float(bundle.get("span_seconds", 1e12)) > cfg.cabal_buy_window_seconds:
+        return False, "outside the time window"
+    if cfg.cabal_buy_require_cabal and not bundle.get("cabal_id"):
+        return False, "not a known cabal"
+    if det is None:
+        return False, "coin not analysed"
+    if float(det.get("safety", 0)) < cfg.cabal_buy_min_safety:
+        return False, "safety too low"
+    if float(det.get("dump_risk", 100)) > cfg.cabal_buy_max_dump_risk:
+        return False, "dump risk too high"
+    if det.get("phase") == "dump":
+        return False, "coin is dumping"
+    return True, "cabal pile-in cleared the quality gate"
+
+
 class Scanner:
     def __init__(self, cfg: Config, db: Database):
         self.cfg = cfg
@@ -63,6 +89,7 @@ class Scanner:
         self._on_update: list[Callable[[], None]] = []
         self._on_signal: list[Callable[[Signal], None]] = []
         self._alerted_bundles: set[str] = set()
+        self._cabal_bought: set[str] = set()  # coins entered on a cabal pile-in
 
     @property
     def is_scanning(self) -> bool:
@@ -185,6 +212,10 @@ class Scanner:
         self.intel.record_careers()
         self._emit_bundle_signals()
 
+        # follow coordinated cabal pile-ins into a coin (paper auto-entry)
+        if not self.paused:
+            self._consider_cabal_buys(snap_by_addr, board)
+
         # launchpad: score brand-new pump.fun coins + run spray bets, then make
         # those fresh coins buyable from the dashboard
         try:
@@ -287,6 +318,54 @@ class Scanner:
                                       f"(conf {decision.confidence:.0f}%) — {decision.reason}",
                                       meta={"confidence": decision.confidence,
                                             "url": snap.url}))
+
+    def _consider_cabal_buys(self, snaps: dict[str, TokenSnapshot],
+                             board: list[dict[str, Any]]) -> None:
+        """Open a paper position when a known cabal coordinates a buy into a coin
+        that passes the quality gate. Deduped per active bundle."""
+        if not self.cfg.cabal_buy_enabled:
+            return
+        det_by_addr = {b["token"]["address"]: b["detection"] for b in board}
+        board_by_addr = {b["token"]["address"]: b for b in board}
+        active: set[str] = set()
+        for bundle in self.intel.bundles(30):
+            addr = bundle.get("address")
+            if not addr:
+                continue
+            active.add(addr)
+            if addr in self._cabal_bought or self.trader.has_position(addr):
+                continue
+            if not self.trader.can_open():
+                break
+            snap = snaps.get(addr)
+            if not snap:
+                continue
+            ok, reason = cabal_buy_decision(bundle, det_by_addr.get(addr), self.cfg)
+            if not ok:
+                continue
+            cabal = bundle.get("cabal_id") or "cabal"
+            note = (f"{cabal} · {bundle['wallet_count']} wallets bought "
+                    f"{bundle.get('label', 'together')}")
+            b = board_by_addr.get(addr)
+            ctx = self._build_entry_context(b, "cabal", note) if b else {
+                "kind": "cabal", "note": note}
+            ctx.update({
+                "cabal_id": bundle.get("cabal_id"),
+                "cabal_wallet_count": bundle.get("wallet_count"),
+                "span_seconds": bundle.get("span_seconds"),
+                "bundle_label": bundle.get("label"),
+                "bundle_severity": bundle.get("severity"),
+                "cabal_wallets": [w.get("wallet_short") for w in
+                                  bundle.get("wallets", [])][:8],
+            })
+            pos = self.trader.open_position(snap, note, entry_context=ctx)
+            if pos:
+                self._cabal_bought.add(addr)
+                self._emit(Signal("entry", "success", addr, snap.symbol,
+                                  f"CABAL BUY {snap.symbol} ${pos.entry_value:.0f} — {note}",
+                                  meta={"cabal": True, "cabal_id": bundle.get("cabal_id"),
+                                        "url": snap.url}))
+        self._cabal_bought &= active  # allow a fresh entry if the cabal re-piles later
 
     # --- entry context (the "why we bought" record for the Trades tab) --- #
     @staticmethod

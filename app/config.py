@@ -62,6 +62,16 @@ class Config:
     loadout_min_score: float = 45
     loadout_ttl_seconds: int = 240
 
+    # cabal-buy: auto-enter when a coordinated group piles into the same coin
+    # inside a window AND the coin passes a quality gate. Follows the bundling /
+    # cabal detector. (Wallet identities are simulated; coin gating is real.)
+    cabal_buy_enabled: bool = True
+    cabal_buy_min_wallets: int = 3          # how many wallets must buy together
+    cabal_buy_window_seconds: int = 1200    # ...inside this window (<=20 min)
+    cabal_buy_require_cabal: bool = True     # only a *known* recurring cabal counts
+    cabal_buy_min_safety: float = 50         # coin must clear this structural safety
+    cabal_buy_max_dump_risk: float = 55      # ...and not be distributing already
+
     # launchpad — catch pump.fun coins in their first minutes (PumpPortal WS +
     # DexScreener enrichment). Free out of the box (new-coin + migration streams);
     # a funded PUMPPORTAL_API_KEY additionally unlocks the per-trade buyer stream.

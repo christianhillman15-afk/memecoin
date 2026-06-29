@@ -254,6 +254,7 @@
     else if (filt === "auto") rows = rows.filter((t) => (t.entry_context?.kind || "auto") === "auto");
     else if (filt === "manual") rows = rows.filter((t) => (t.entry_context?.kind) === "manual");
     else if (filt === "spray") rows = rows.filter((t) => (t.entry_context?.kind) === "spray");
+    else if (filt === "cabal") rows = rows.filter((t) => (t.entry_context?.kind) === "cabal");
     if (q) rows = rows.filter((t) => (t.symbol + " " + (t.name || "")).toLowerCase().includes(q));
     rows.sort(SPEC_SORTERS[sort] || SPEC_SORTERS.recent);
     if (!rows.length) {
@@ -270,6 +271,7 @@
       : (t.entry_reason || "—");
     const kindTag = ctx.kind === "manual" ? `<span class="spec-kind manual">manual</span>`
       : ctx.kind === "spray" ? `<span class="spec-kind spray">spray</span>`
+      : ctx.kind === "cabal" ? `<span class="spec-kind cabal">cabal</span>`
       : `<span class="spec-kind auto">auto</span>`;
     const flagPips = flagged.slice(0, 4).map((w) =>
       `<span class="badge ${esc(w.kind)} sm">${esc((w.kind || "").replace("_", " "))}</span>`).join("");
@@ -329,7 +331,15 @@
       ? `<span class="spec-kind manual">manual buy</span>`
       : ctx.kind === "spray"
       ? `<span class="spec-kind spray">spray bet${hasScore(ctx.moonshot) ? " · moonshot " + Math.round(ctx.moonshot) : ""}</span>`
+      : ctx.kind === "cabal"
+      ? `<span class="spec-kind cabal">cabal buy${ctx.cabal_id ? " · " + esc(ctx.cabal_id) : ""}</span>`
       : `<span class="spec-kind auto">auto entry${hasScore(ctx.confidence) ? " · " + Math.round(ctx.confidence) + "% conf" : ""}</span>`;
+    const cabalLine = ctx.kind === "cabal" && (ctx.cabal_wallets || []).length
+      ? `<div class="prof-section sm2">👥 Cabal that piled in</div>
+         <div class="cp-meta">${esc(ctx.cabal_id || "cabal")} · <b>${ctx.cabal_wallet_count || (ctx.cabal_wallets||[]).length}</b> wallets`
+        + (ctx.span_seconds != null ? ` · within ${ctx.span_seconds < 90 ? Math.round(ctx.span_seconds) + "s" : Math.round(ctx.span_seconds/60) + "m"}` : "")
+        + `</div><div class="tw-list">${(ctx.cabal_wallets||[]).map((w) => `<code class="mut">${esc(w)}</code>`).join(" ")}</div>`
+      : "";
     openModal(`
       <button class="modal-x" data-close>×</button>
       <div class="prof-head">
@@ -352,6 +362,7 @@
       ${intelLine ? `<div class="cp-meta">${intelLine}${ctx.confirmed_multi_sell ? ' · <span class="rug-bad">🚨 multi-sell later</span>' : ""}</div>` : ""}
       ${reasons ? `<div class="prof-section sm2">Signals at entry</div><ul class="spec-reasons">${reasons}</ul>` : ""}
       ${flags ? `<div class="cp-flags">${flags}</div>` : ""}
+      ${cabalLine}
       <div class="prof-section">🕵️ Flagged wallets at entry <span class="hint">click to open</span></div>
       <div class="tw-list">${flagged}</div>
       <div class="prof-section">🚪 Exit</div>

@@ -90,6 +90,12 @@ A token is bought only when **all** gates pass: strong pump score, acceptable
 dump risk, structural safety (liquidity / age / churn), and net smart-money
 inflow — and never while a confirmed coordinated sell is active.
 
+**Cabal-buy** is a second entry path: when a **known cabal** (a recurring group)
+has ≥ N members buy the *same* coin inside a window **and** the coin clears a
+quality gate (safety, dump-risk, not distributing), MemeRadar opens a position
+and records *which* cabal and wallets triggered it (shown in **Trade Specs**).
+Tunable in `config.yaml` (`cabal_buy_*`); respects Pause and the position cap.
+
 ### Exit logic — *“sell before the dump”*
 Evaluated worst-case first, every scan, for every open position:
 
