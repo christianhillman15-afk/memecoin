@@ -496,6 +496,14 @@ body.modal-open{overflow:hidden}
 .lp-toolbar{display:flex;justify-content:space-between;align-items:center;gap:14px;
   margin:6px 26px 0;padding:10px 0;flex-wrap:wrap}
 .lp-spray{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.lp-stream-chip{font-family:var(--mono);font-size:12px;font-weight:700;white-space:nowrap;
+  padding:6px 12px;border-radius:999px;border:1px solid var(--border2);color:var(--muted)}
+.lp-stream-chip.on{border-color:rgba(25,227,164,.45);background:rgba(25,227,164,.08);color:var(--accent)}
+.lp-stream-chip.on::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--accent);margin-right:7px;vertical-align:middle;box-shadow:0 0 8px var(--accent);
+  animation:streamPulse 1.6s ease-in-out infinite}
+.lp-stream-chip.off{border-color:var(--border2);background:var(--panel2);color:var(--faint)}
+@keyframes streamPulse{50%{opacity:.35}}
 .lp-buy{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .lp-buy input{width:80px;background:var(--panel2);border:1px solid var(--border2);border-radius:8px;
   color:var(--text);padding:7px 9px;font-size:13px;font-family:var(--mono);outline:none}

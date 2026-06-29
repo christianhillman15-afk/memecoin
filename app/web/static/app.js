@@ -880,6 +880,16 @@
     if (pnl) { pnl.textContent = (s.spray_unrealized >= 0 ? "+" : "") + fmtUsd(s.spray_unrealized || 0, 0);
                pnl.className = "kpi-value " + cls(s.spray_unrealized || 0); }
     set("lpSprayState", s.spray_enabled ? "spraying" : "off");
+    const chip = document.getElementById("lpStreamChip");
+    if (chip) {
+      if (s.trade_stream) {
+        chip.textContent = `📡 trade stream: ON · ~${(s.est_sol_spent || 0).toFixed(3)} ◎ spent · watching ${s.trade_watch || 0}/${s.trade_watch_max || 0}`;
+        chip.className = "lp-stream-chip on";
+      } else {
+        chip.textContent = "📡 trade stream: OFF · free (add PUMPPORTAL_API_KEY)";
+        chip.className = "lp-stream-chip off";
+      }
+    }
     const tg = document.getElementById("sprayToggle");
     if (tg) { tg.textContent = "Spray: " + (s.spray_enabled ? "ON" : "off");
               tg.classList.toggle("active", !!s.spray_enabled); }
