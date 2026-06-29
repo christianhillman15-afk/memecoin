@@ -177,9 +177,13 @@ into with one click.
 - **Real auto-discovered wallets.** Creator wallets are tracked across launches:
   how many coins they've shipped, how many gained traction or **graduated**, and
   their hit-rate. Serial ruggers and serial winners both surface over time. This
-  is **real, free** on-chain wallet intelligence. *(A funded `PUMPPORTAL_API_KEY`
-  additionally unlocks the per-trade buyer stream for real **per-buyer**
-  discovery; without it you still get per-creator discovery.)*
+  is **real, free** on-chain wallet intelligence.
+- **🕵️ Smart buyers** (with a funded `PUMPPORTAL_API_KEY`). The per-trade stream
+  reveals the wallets *buying* each coin early; each is **smart-scored** by how
+  reliably the coins it apes into go on to win (traction / graduation), plus an
+  accumulator-vs-dumper bias and net SOL flow. This is the real "find the
+  insider wallets that get in before the pump" capability. Without a key the
+  panel shows a one-step unlock note; creator discovery above stays fully free.
 - **💸 Spray mode** (opt-in): *"put a small amount in each — it either explodes or
   goes to zero."* Sprays a tiny capped paper bet ($25 by default) across the
   strongest fresh candidates, then runs a fast exit ladder: bank at a big

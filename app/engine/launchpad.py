@@ -387,7 +387,8 @@ class LaunchpadEngine:
                       "last_refresh_ts": self.last_refresh_ts},
             "spray_positions": spray_list,
             "discovered": self.ingester.discovered_creators(40),
-            "buyers": self.ingester.top_buyers(40) if self.cfg.has_pumpportal_trades else [],
+            "buyers": (self.ingester.discovered_buyers(40)
+                       if self.cfg.has_pumpportal_trades else []),
         }
 
 

@@ -765,6 +765,42 @@
     renderLpBoard(d.board || []);
     renderLpSpray(d.spray_positions || []);
     renderLpCreators(d.discovered || []);
+    renderLpBuyers(d.buyers || [], s);
+  }
+  function renderLpBuyers(list, stats) {
+    const el = document.getElementById("lpBuyersList");
+    const hint = document.getElementById("lpBuyersHint");
+    if (!el) return;
+    if (!stats || !stats.trade_stream) {
+      if (hint) hint.textContent = "🔒 locked";
+      el.innerHTML = `<div class="lp-locked">
+        <div class="lp-lock-h">🔒 Per-buyer discovery is off</div>
+        <p>Add a funded <code>PUMPPORTAL_API_KEY</code> to your <code>.env</code> (≈0.02 SOL, ~$1.40)
+        to stream every trade and reveal the <b>real wallets buying these coins early</b> —
+        scored by how often the coins they ape into go on to win.</p>
+        <p class="mut">The free version already tracks <b>creators</b> above. Restart after adding the key.</p>
+      </div>`;
+      return;
+    }
+    if (hint) hint.textContent = `${(stats.buyers_known||0).toLocaleString()} seen · ${(stats.trades_seen||0).toLocaleString()} trades`;
+    if (!list.length) {
+      el.innerHTML = `<div class="empty">Watching trades — smart buyers appear as their coins start winning.</div>`;
+      return;
+    }
+    el.innerHTML = list.slice(0, 30).map((b) => {
+      const sev = b.smart_score >= 70 ? "hot" : b.smart_score >= 50 ? "warm" : "cold";
+      return `<div class="lp-buyer-row sev-${sev}">
+        <a class="lp-buyer-id" href="https://solscan.io/account/${esc(b.wallet)}" target="_blank" rel="noopener" title="${esc(b.wallet)} — open on Solscan">
+          <code>${esc(b.wallet_short)}</code> ↗</a>
+        <span class="lp-buyer-score" title="smart score">${b.smart_score}</span>
+        <span class="lp-buyer-stats">
+          <b class="${b.hit_rate>=50?'up':'mut'}">${b.hit_rate}%</b> hit ·
+          <b>${b.wins}</b>🏆${b.grads?` <b class="up">${b.grads}</b>🎓`:""} · ${b.coins} coins ·
+          <span class="${cls(b.net_sol)}">${b.net_sol>=0?'+':''}${b.net_sol} ◎</span>
+        </span>
+        <button class="lp-copy" data-copy="${esc(b.wallet)}" title="copy address">⧉</button>
+      </div>`;
+    }).join("");
   }
   function lpCreatorChip(b) {
     const rec = b.creator_rec;

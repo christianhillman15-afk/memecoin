@@ -49,6 +49,7 @@ class PumpPortalIngester:
         self._creators: dict[str, dict[str, Any]] = {}  # wallet -> track record
         self._buyers: dict[str, dict[str, Any]] = {}    # wallet -> trade-stream record (key only)
         self._tracked_trades: set[str] = set()          # mints we asked for trades on
+        self._pending_trade_subs: list[str] = []        # mints awaiting a trade subscription
 
         self.total_coins_seen = 0
         self.total_migrations = 0
@@ -110,6 +111,8 @@ class PumpPortalIngester:
                         if not self._running:
                             break
                         self._handle(raw)
+                        if self._pending_trade_subs:
+                            await self._flush_trade_subs(ws)
             except asyncio.CancelledError:
                 break
             except Exception as e:  # noqa: BLE001 — keep reconnecting
@@ -168,8 +171,10 @@ class PumpPortalIngester:
         self.last_event_ts = rec["created_at"]
         self._bump_creator(creator, mint)
         self._evict()
-        if self.cfg.has_pumpportal_trades:
-            self._maybe_track_trades(mint)
+        # queue a trade subscription (only sent when a funded key is present);
+        # the async WS loop flushes the queue so we never await from here
+        if self.cfg.has_pumpportal_trades and mint not in self._tracked_trades:
+            self._pending_trade_subs.append(mint)
 
     def _on_migrate(self, m: dict[str, Any]) -> None:
         mint = m.get("mint")
@@ -181,6 +186,7 @@ class PumpPortalIngester:
         if rec and not rec["migrated"]:
             rec["migrated"] = True
             self._credit_creator(rec["creator"], graduated=True)
+            self._credit_buyers(mint, graduated=True)
 
     def _on_trade(self, m: dict[str, Any]) -> None:
         # only reachable with a funded key; attribute the buyer wallet
@@ -191,31 +197,63 @@ class PumpPortalIngester:
             return
         side = m.get("txType")
         sol = float(m.get("solAmount") or 0)
-        b = self._buyers.setdefault(wallet, {
-            "wallet": wallet, "buys": 0, "sells": 0, "sol_in": 0.0, "sol_out": 0.0,
-            "coins": set(), "first_seen": now()})
+        b = self._buyers.get(wallet)
+        if b is None:
+            b = {"wallet": wallet, "buys": 0, "sells": 0, "sol_in": 0.0, "sol_out": 0.0,
+                 "coins": set(), "wins": set(), "grads": set(),
+                 "first_seen": now(), "last_seen": now()}
+            self._buyers[wallet] = b
+            if len(self._buyers) > 8000:
+                self._trim_buyers()
+        b["last_seen"] = now()
         if side == "buy":
             b["buys"] += 1
             b["sol_in"] += sol
+            if mint:
+                b["coins"].add(mint)            # only count coins they actually bought
         else:
             b["sells"] += 1
             b["sol_out"] += sol
-        if mint:
-            b["coins"].add(mint)
         rec = self._coins.get(mint) if mint else None
         if rec is not None and side == "buy" and wallet not in rec["buyers"]:
-            if len(rec["buyers"]) < 50:
+            if len(rec["buyers"]) < 80:
                 rec["buyers"].append(wallet)
 
-    async def _maybe_track_trades(self, mint: str) -> None:
-        if mint in self._tracked_trades or self._ws is None:
+    def _credit_buyers(self, mint: str, *, traction: bool = False,
+                       graduated: bool = False) -> None:
+        """When a coin wins, credit the wallets that bought it early — the real
+        signal that a wallet 'gets into winners'. Idempotent (set-backed)."""
+        rec = self._coins.get(mint)
+        if not rec:
             return
-        self._tracked_trades.add(mint)
+        for w in rec.get("buyers", []):
+            b = self._buyers.get(w)
+            if not b:
+                continue
+            if traction or graduated:
+                b["wins"].add(mint)
+            if graduated:
+                b["grads"].add(mint)
+
+    def _trim_buyers(self) -> None:
+        victims = [w for w, b in self._buyers.items()
+                   if len(b["coins"]) <= 1 and not b["wins"]
+                   and (b["sol_in"] - b["sol_out"]) <= 0]
+        victims.sort(key=lambda w: self._buyers[w]["last_seen"])
+        for w in victims[:3000]:
+            self._buyers.pop(w, None)
+
+    async def _flush_trade_subs(self, ws: Any) -> None:
+        """Send queued token-trade subscriptions in one batched message."""
+        keys = [m for m in self._pending_trade_subs[:80] if m not in self._tracked_trades]
+        self._pending_trade_subs = self._pending_trade_subs[80:]
+        if not keys:
+            return
         try:
-            await self._ws.send(json.dumps(
-                {"method": "subscribeTokenTrade", "keys": [mint]}))
-        except Exception:  # noqa: BLE001
-            self._tracked_trades.discard(mint)
+            await ws.send(json.dumps({"method": "subscribeTokenTrade", "keys": keys}))
+            self._tracked_trades.update(keys)
+        except Exception:  # noqa: BLE001 — will retry on the next create
+            pass
 
     # --- creator track records ------------------------------------------- #
     def _bump_creator(self, wallet: str, mint: str) -> None:
@@ -275,6 +313,7 @@ class PumpPortalIngester:
                 or vol_h1_usd >= self.cfg.creator_traction_vol_usd):
             rec["traction"] = True
             self._credit_creator(rec["creator"], traction=True)
+            self._credit_buyers(mint, traction=True)
 
     # --- accessors (callers copy first; reads are between awaits) --------- #
     def recent_coins(self, max_age_minutes: Optional[float] = None) -> list[dict[str, Any]]:
@@ -303,18 +342,38 @@ class PumpPortalIngester:
                                 c["launches"]), reverse=True)
         return out[:limit]
 
-    def top_buyers(self, limit: int = 40) -> list[dict[str, Any]]:
-        """Per-trade buyer wallets (only populated with a funded key)."""
+    def discovered_buyers(self, limit: int = 40) -> list[dict[str, Any]]:
+        """Per-trade buyer wallets, smart-scored (only populated with a funded
+        key). Ranked by how reliably they buy coins that go on to win."""
         out = []
         for b in self._buyers.values():
-            net = b["sol_in"] - b["sol_out"]
-            out.append({"wallet": b["wallet"], "wallet_short": _short(b["wallet"]),
-                        "buys": b["buys"], "sells": b["sells"],
-                        "sol_in": round(b["sol_in"], 3), "sol_out": round(b["sol_out"], 3),
-                        "net_sol": round(net, 3), "coins": len(b["coins"]),
-                        "first_seen": b["first_seen"]})
-        out.sort(key=lambda b: b["net_sol"], reverse=True)
+            if not b["coins"]:
+                continue
+            out.append(self._buyer_view(b))
+        out.sort(key=lambda b: (b["smart_score"], b["wins"]), reverse=True)
         return out[:limit]
+
+    def buyer_record(self, wallet: str) -> Optional[dict[str, Any]]:
+        b = self._buyers.get(wallet)
+        return self._buyer_view(b) if b else None
+
+    @staticmethod
+    def _buyer_view(b: dict[str, Any]) -> dict[str, Any]:
+        coins = len(b["coins"])
+        wins = len(b["wins"])
+        grads = len(b["grads"])
+        net = b["sol_in"] - b["sol_out"]
+        return {
+            "wallet": b["wallet"], "wallet_short": _short(b["wallet"]),
+            "smart_score": buyer_smart_score(b["buys"], b["sells"], b["sol_in"],
+                                             b["sol_out"], coins, wins, grads),
+            "hit_rate": round(min(1.0, wins / max(1, coins)) * 100, 0),
+            "wins": wins, "grads": grads, "coins": coins,
+            "buys": b["buys"], "sells": b["sells"],
+            "sol_in": round(b["sol_in"], 3), "sol_out": round(b["sol_out"], 3),
+            "net_sol": round(net, 3),
+            "first_seen": b["first_seen"], "last_seen": b["last_seen"],
+        }
 
     @staticmethod
     def _creator_view(c: dict[str, Any]) -> dict[str, Any]:
@@ -336,9 +395,40 @@ class PumpPortalIngester:
             "trades_seen": self.total_trades,
             "tracked_now": len(self._coins),
             "creators_known": len(self._creators),
+            "buyers_known": len(self._buyers),
             "trade_stream": self.cfg.has_pumpportal_trades,
             "last_event_ts": self.last_event_ts,
         }
+
+
+def _clamp(v: float, lo: float = 0.0, hi: float = 1.0) -> float:
+    return max(lo, min(hi, v))
+
+
+def buyer_smart_score(buys: int, sells: int, sol_in: float, sol_out: float,
+                      coins: int, wins: int, grads: int) -> float:
+    """Rank a buyer wallet 0-100 by how reliably it gets into winners early.
+
+    The strongest signal is real: the share of the wallet's bought coins that
+    went on to gain traction / graduate (``wins`` / ``coins``). We add credit for
+    proven graduations, an accumulator (not dumper) trade bias, and net SOL
+    inflow, then dampen low-sample wallets so one lucky hit can't top the board.
+    Pure + unit-tested.
+    """
+    coins_n = max(1, coins)
+    hit_rate = _clamp(wins / coins_n)
+    net = sol_in - sol_out
+    total = max(1, buys + sells)
+    buy_ratio = buys / total
+    score = (hit_rate * 48
+             + min(1.0, grads / 3.0) * 16            # proven graduations
+             + _clamp((buy_ratio - 0.4) / 0.5) * 12  # accumulator vs dumper
+             + _clamp(net / 10.0) * 12               # net SOL inflow (10 SOL = full)
+             + min(1.0, coins_n / 8.0) * 12)         # breadth / sample size
+    score *= _clamp(0.45 + coins_n * 0.18)           # low-sample confidence dampener
+    if net < 0:
+        score -= 8                                   # net seller penalty
+    return round(_clamp(score, 0, 100), 1)
 
 
 def _short(w: str) -> str:

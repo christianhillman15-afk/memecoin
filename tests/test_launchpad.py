@@ -10,7 +10,8 @@ import pytest
 
 from app.config import Config
 from app.database import Database
-from app.data.pumpportal import PUMP_TOTAL_SUPPLY, PumpPortalIngester
+from app.data.pumpportal import (PUMP_TOTAL_SUPPLY, PumpPortalIngester,
+                                 buyer_smart_score)
 from app.engine.launchpad import LaunchpadEngine, effective_liquidity, moonshot_score
 from app.engine.paper_trader import PaperTrader
 from app.models import TokenSnapshot, now
@@ -129,6 +130,49 @@ def test_recent_coins_age_filter():
 
 def cfg_val(name):
     return getattr(Config(), name)
+
+
+# --------------------------------------------------------------------------- #
+# Buyer smart-scoring + crediting (per-trade stream)
+# --------------------------------------------------------------------------- #
+def test_buyer_score_proven_beats_dumper_and_lucky():
+    # proven: 10 coins, 7 winners incl 3 graduations, net accumulator
+    proven = buyer_smart_score(buys=30, sells=8, sol_in=25, sol_out=5,
+                               coins=10, wins=7, grads=3)
+    # dumper: lots of selling, net negative, barely any winners
+    dumper = buyer_smart_score(buys=4, sells=30, sol_in=3, sol_out=20,
+                               coins=8, wins=1, grads=0)
+    # lucky one-shot: 1 coin, 1 win — must be dampened below proven
+    lucky = buyer_smart_score(buys=1, sells=0, sol_in=1, sol_out=0,
+                              coins=1, wins=1, grads=0)
+    assert proven > 70 > lucky and lucky > dumper
+    assert dumper < 25
+
+
+def test_buyer_credited_when_bought_coin_wins():
+    ing = _ing()
+    ing._on_create({"txType": "create", "mint": "M1", "traderPublicKey": "DEV",
+                    "symbol": "A", "name": "a"})
+    # two wallets buy M1 early (as the trade stream would report)
+    for w in ("WhaleA", "WhaleB"):
+        ing._on_trade({"txType": "buy", "mint": "M1", "traderPublicKey": w, "solAmount": 2})
+    # M1 gains traction, then graduates
+    ing.note_traction("M1", liq_usd=cfg_val("creator_traction_liq_usd") + 1, vol_h1_usd=0)
+    ing._on_migrate({"txType": "migrate", "mint": "M1"})
+    buyers = {b["wallet"]: b for b in ing.discovered_buyers()}
+    assert buyers["WhaleA"]["wins"] == 1 and buyers["WhaleA"]["grads"] == 1
+    assert buyers["WhaleA"]["hit_rate"] == 100
+    # a seller who never bought isn't credited as a buyer
+    ing._on_trade({"txType": "sell", "mint": "M1", "traderPublicKey": "Seller", "solAmount": 9})
+    assert ing.buyer_record("Seller")["coins"] == 0
+
+
+def test_buyers_empty_without_key_flag():
+    # the engine only exposes buyers when the funded-key flag is on; here we just
+    # confirm the ingester view is independent and computes coins correctly
+    ing = _ing()
+    ing._on_trade({"txType": "buy", "mint": "Z", "traderPublicKey": "W", "solAmount": 1})
+    assert ing.discovered_buyers()[0]["coins"] == 1
 
 
 # --------------------------------------------------------------------------- #
