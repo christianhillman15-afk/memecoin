@@ -90,6 +90,10 @@ class Scanner:
         self._on_signal: list[Callable[[Signal], None]] = []
         self._alerted_bundles: set[str] = set()
         self._cabal_bought: set[str] = set()  # coins entered on a cabal pile-in
+        # risk controls
+        self._exited_at: dict[str, float] = {}  # addr -> last full-exit ts (cooldown)
+        self._loss_streak: int = 0              # consecutive losing closes
+        self._circuit_until: float = 0.0        # auto-entries paused until this ts
 
     @property
     def is_scanning(self) -> bool:
@@ -286,9 +290,21 @@ class Scanner:
             intel_d = intel_by_addr.get(addr)
             intel_obj = self._intel_from_dict(intel_d) if intel_d else None
             decision = evaluate_exit(pos, snap, det, intel_obj, self.cfg)
-            if decision.exit:
+            if not decision.exit:
+                continue
+            if decision.fraction < 1.0 and not pos.partial_taken:
+                # scale-out: bank part of the position, keep the rest running
+                trade = self.trader.manual_sell(addr, price, decision.fraction, decision.reason)
+                if trade:
+                    pos.partial_taken = True
+                    self._emit(Signal("exit", "success", addr, pos.symbol,
+                                      f"BANKED {decision.fraction*100:.0f}% of {pos.symbol} "
+                                      f"{trade.pnl_pct:+.1f}% (${trade.pnl:+.0f}) — {decision.reason}",
+                                      meta={"pnl": trade.pnl, "partial": True}))
+            else:
                 trade = self.trader.close_position(addr, price, decision.reason)
                 if trade:
+                    self._record_full_exit(addr, trade)
                     sev = "success" if trade.pnl >= 0 else "warning"
                     self._emit(Signal("exit", sev, addr, pos.symbol,
                                       f"SOLD {pos.symbol} {trade.pnl_pct:+.1f}% "
@@ -297,13 +313,15 @@ class Scanner:
 
     def _consider_entries(self, snaps: dict[str, TokenSnapshot],
                           board: list[dict[str, Any]]) -> None:
+        if not self._can_auto_enter():
+            return  # circuit breaker tripped — sit out
         candidates = sorted(board, key=lambda b: b["detection"]["opportunity"], reverse=True)
         for b in candidates:
             if not self.trader.can_open():
                 break
             addr = b["token"]["address"]
             snap = snaps.get(addr)
-            if not snap or self.trader.has_position(addr):
+            if not snap or self.trader.has_position(addr) or self._in_cooldown(addr):
                 continue
             det = self._det_from_dict(b["detection"])
             intel = self._intel_from_dict(b["intel"])
@@ -311,26 +329,58 @@ class Scanner:
             if decision.enter:
                 ctx = self._build_entry_context(b, "auto", decision.reason)
                 ctx["confidence"] = round(decision.confidence, 0)
-                pos = self.trader.open_position(snap, decision.reason, entry_context=ctx)
+                ctx["confluence"] = decision.confluence
+                mult = self._conviction_mult(decision.confluence)
+                pos = self.trader.open_position(snap, decision.reason, entry_context=ctx,
+                                                size_mult=mult)
                 if pos:
-                    self._emit(Signal("entry", "info", addr, snap.symbol,
+                    self._emit(Signal("entry", "success", addr, snap.symbol,
                                       f"BOUGHT {snap.symbol} ${pos.entry_value:.0f} "
-                                      f"(conf {decision.confidence:.0f}%) — {decision.reason}",
+                                      f"({decision.confluence}/6 signals) — {decision.reason}",
                                       meta={"confidence": decision.confidence,
-                                            "url": snap.url}))
+                                            "confluence": decision.confluence, "url": snap.url}))
+
+    # --- risk controls (re-entry cooldown + circuit breaker) ------------- #
+    def _can_auto_enter(self) -> bool:
+        """False while the losing-streak circuit breaker is tripped."""
+        return time.time() >= self._circuit_until
+
+    def _in_cooldown(self, addr: str) -> bool:
+        ts = self._exited_at.get(addr)
+        return ts is not None and (time.time() - ts) < self.cfg.reentry_cooldown_minutes * 60
+
+    def _record_full_exit(self, addr: str, trade) -> None:
+        """Track cooldown + losing streak; trip the circuit breaker if needed."""
+        self._exited_at[addr] = time.time()
+        if trade.pnl > 0:
+            self._loss_streak = 0
+        else:
+            self._loss_streak += 1
+            if self._loss_streak >= self.cfg.max_consecutive_losses:
+                self._circuit_until = time.time() + self.cfg.circuit_breaker_minutes * 60
+                self._loss_streak = 0
+                self._emit(Signal("dump", "warning", "", "RISK",
+                                  f"Circuit breaker: {self.cfg.max_consecutive_losses} losses in a "
+                                  f"row — auto-entries paused {self.cfg.circuit_breaker_minutes}m",
+                                  meta={"circuit_breaker": True}))
+
+    def _conviction_mult(self, confluence: int) -> float:
+        if not self.cfg.conviction_sizing:
+            return 1.0
+        return round(1.0 + 0.2 * max(0, confluence - self.cfg.entry_min_confluence), 2)
 
     def _consider_cabal_buys(self, snaps: dict[str, TokenSnapshot],
                              board: list[dict[str, Any]]) -> None:
         """Open a paper position when a known cabal coordinates a buy into a coin
         that passes the quality gate. Deduped per active bundle."""
-        if not self.cfg.cabal_buy_enabled:
+        if not self.cfg.cabal_buy_enabled or not self._can_auto_enter():
             return
         det_by_addr = {b["token"]["address"]: b["detection"] for b in board}
         board_by_addr = {b["token"]["address"]: b for b in board}
         active: set[str] = set()
         for bundle in self.intel.bundles(30):
             addr = bundle.get("address")
-            if not addr:
+            if not addr or self._in_cooldown(addr):
                 continue
             active.add(addr)
             if addr in self._cabal_bought or self.trader.has_position(addr):
@@ -485,6 +535,7 @@ class Scanner:
                 "chain": self.cfg.chain,
                 "wallet_provider": "helius" if self.cfg.has_wallet_provider else "simulated",
                 "launchpad": self.pumpportal.connected,
+                "circuit_breaker": time.time() < self._circuit_until,
             },
         }
 

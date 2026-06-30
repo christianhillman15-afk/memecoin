@@ -55,10 +55,12 @@ class PaperTrader:
 
     # --- order management ------------------------------------------------- #
     def open_position(self, snap: TokenSnapshot, reason: str,
-                      entry_context: Optional[dict] = None) -> Optional[Position]:
+                      entry_context: Optional[dict] = None,
+                      size_mult: float = 1.0) -> Optional[Position]:
         if not self.can_open() or self.has_position(snap.address):
             return None
-        size = self._entry_size()
+        size = self._entry_size() * max(0.5, min(2.0, size_mult))
+        size = min(size, self.cfg.max_position_usd, self.cash * 0.98)
         if size < 50 or snap.price_usd <= 0:
             return None
         fill = snap.price_usd * (1 + self.cfg.slippage_pct)   # buy into the spread

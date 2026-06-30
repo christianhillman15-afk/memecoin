@@ -30,6 +30,7 @@ class EntryDecision:
     enter: bool
     reason: str = ""
     confidence: float = 0.0
+    confluence: int = 0       # how many independent bullish signals aligned
 
 
 @dataclass
@@ -37,6 +38,7 @@ class ExitDecision:
     exit: bool
     reason: str = ""
     urgent: bool = False
+    fraction: float = 1.0     # <1.0 = scale out (partial), 1.0 = full close
 
 
 def evaluate_entry(snap: TokenSnapshot, det: DetectionResult,
@@ -60,7 +62,18 @@ def evaluate_entry(snap: TokenSnapshot, det: DetectionResult,
         if snap.freeze_renounced is False:
             return EntryDecision(False, "freeze authority not renounced (honeypot risk)")
 
-    # signal gates ---------------------------------------------------------
+    # don't buy the top: skip already-mooned / rolling-over / distributing coins
+    h1 = snap.price_change.get("h1", 0.0)
+    h6 = snap.price_change.get("h6", 0.0)
+    h24 = snap.price_change.get("h24", 0.0)
+    if h24 > cfg.entry_max_h24_pct:
+        return EntryDecision(False, f"already mooned (+{h24:.0f}% 24h)")
+    if cfg.entry_block_rollover and h1 < 0 and h6 < 0:
+        return EntryDecision(False, "rolling over (1h & 6h red)")
+    if det.phase in ("distribution", "dump"):
+        return EntryDecision(False, f"{det.phase} phase")
+
+    # base signal gates (raised bars) -------------------------------------- #
     if det.pump_score < cfg.entry_min_pump_score:
         return EntryDecision(False, f"pump score {det.pump_score:.0f} < {cfg.entry_min_pump_score:.0f}")
     if det.dump_risk > cfg.entry_max_dump_risk:
@@ -72,16 +85,32 @@ def evaluate_entry(snap: TokenSnapshot, det: DetectionResult,
     if cfg.entry_require_smart_inflow and intel.smart_inflow_score < 0:
         return EntryDecision(False, "smart money is net selling")
 
-    # confidence: how far above the bar are we?
+    # confluence: count INDEPENDENT bullish signals — only A+ setups pass ---- #
+    signals = {
+        "strong momentum": det.pump_score >= cfg.entry_strong_pump_score,
+        "smart-money inflow": intel.smart_inflow_score > 25,
+        "structurally safe": det.safety >= 75 or det.dump_risk <= 18,
+        "wallet interest": (intel.smart_money_count + intel.insider_count) >= 2
+                            or intel.whale_count >= 1,
+        "volume surge": "volume_surge" in (det.flags or []),
+        "trend intact": h1 >= 0 and h6 >= 0,
+    }
+    confluence = sum(1 for v in signals.values() if v)
+    if confluence < cfg.entry_min_confluence:
+        return EntryDecision(False,
+                             f"only {confluence}/{cfg.entry_min_confluence} signals aligned",
+                             confluence=confluence)
+
     conf = (
-        0.45 * min(1.0, det.pump_score / 100)
+        0.40 * min(1.0, det.pump_score / 100)
         + 0.20 * min(1.0, det.safety / 100)
-        + 0.20 * max(0.0, (cfg.entry_max_dump_risk - det.dump_risk) / max(1, cfg.entry_max_dump_risk))
-        + 0.15 * max(0.0, intel.smart_inflow_score / 100)
+        + 0.15 * max(0.0, (cfg.entry_max_dump_risk - det.dump_risk) / max(1, cfg.entry_max_dump_risk))
+        + 0.10 * max(0.0, intel.smart_inflow_score / 100)
+        + 0.15 * min(1.0, confluence / 5.0)
     )
-    reason = (f"pump {det.pump_score:.0f}, safety {det.safety:.0f}, "
-              f"smart-inflow {intel.smart_inflow_score:+.0f}")
-    return EntryDecision(True, reason, round(conf * 100, 1))
+    aligned = [k for k, v in signals.items() if v]
+    reason = f"{confluence}/6 signals: " + ", ".join(aligned[:3])
+    return EntryDecision(True, reason, round(conf * 100, 1), confluence)
 
 
 def evaluate_exit(pos: Position, snap: TokenSnapshot | None,
@@ -112,18 +141,30 @@ def evaluate_exit(pos: Position, snap: TokenSnapshot | None,
     if fresh:
         return ExitDecision(False)
 
-    # 4) trailing stop (locks in profit, bails before the crash) ---------- #
+    # 4) breakeven protection — once it ran up, never let it close red ---- #
+    # (this is the big win-rate lever: a coin that ticks up then fades is
+    #  closed at ~entry instead of being allowed to roll into a loss)
+    if pos.breakeven_armed and pnl_pct <= 0.005:
+        return ExitDecision(True, f"breakeven stop — protected a "
+                                  f"+{pos.high_water_pnl_pct:.0f}% peak")
+
+    # 5) scale-out: bank half the position at the partial-TP level -------- #
+    if not pos.partial_taken and pnl_pct >= cfg.partial_tp_pct:
+        return ExitDecision(True, f"scaled out {cfg.partial_tp_fraction*100:.0f}% "
+                                  f"at {pnl_pct*100:+.1f}%", fraction=cfg.partial_tp_fraction)
+
+    # 6) trailing stop (locks in profit, bails before the crash) ---------- #
     if pos.trailing_armed:
         drawdown = (pos.peak_price - pos.last_price) / pos.peak_price if pos.peak_price else 0.0
         if drawdown >= cfg.trailing_stop_pct:
             return ExitDecision(True, f"trailing stop ({drawdown*100:.1f}% off peak, "
                                       f"locked {pnl_pct*100:+.1f}%)")
 
-    # 5) absolute take-profit -------------------------------------------- #
+    # 7) absolute take-profit -------------------------------------------- #
     if pnl_pct >= cfg.take_profit_pct:
         return ExitDecision(True, f"take-profit ({pnl_pct*100:+.1f}%)")
 
-    # 6) momentum reversal while up -------------------------------------- #
+    # 8) momentum reversal while up -------------------------------------- #
     if cfg.exit_on_momentum_reversal and det and pnl_pct > 0.06:
         if det.phase in ("distribution", "dump") and det.momentum < 0:
             return ExitDecision(True, f"momentum reversal, banking {pnl_pct*100:+.1f}%")
@@ -132,10 +173,12 @@ def evaluate_exit(pos: Position, snap: TokenSnapshot | None,
 
 
 def update_trailing(pos: Position, cfg: Config) -> None:
-    """Update peak price + arm the trailing stop once sufficiently in profit."""
+    """Update peak + arm the trailing stop and the breakeven floor in profit."""
     if pos.last_price > pos.peak_price:
         pos.peak_price = pos.last_price
     pnl_pct = pos.unrealized_pnl_pct / 100.0
     pos.high_water_pnl_pct = max(pos.high_water_pnl_pct, pos.unrealized_pnl_pct)
     if not pos.trailing_armed and pnl_pct >= cfg.arm_trailing_after_pct:
         pos.trailing_armed = True
+    if not pos.breakeven_armed and pnl_pct >= cfg.breakeven_after_pct:
+        pos.breakeven_armed = True

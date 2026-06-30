@@ -34,20 +34,33 @@ class Config:
     fee_pct: float = 0.005
     slippage_pct: float = 0.012
 
-    # entry rules
-    entry_min_pump_score: float = 62
-    entry_max_dump_risk: float = 45
-    entry_min_safety: float = 55
+    # entry rules — tuned for HIGH WIN RATE: trade rarely, only A+ confluence
+    entry_min_pump_score: float = 70      # was 62 — demand a strong move
+    entry_max_dump_risk: float = 28       # was 45 — refuse anything distributing
+    entry_min_safety: float = 68          # was 55 — only structurally sound coins
     entry_require_smart_inflow: bool = True
+    entry_min_confluence: int = 3         # require >= N independent bullish signals
+    entry_strong_pump_score: float = 80   # counts as a "strong momentum" signal
+    entry_max_h24_pct: float = 400        # skip already-mooned coins (buying the top)
+    entry_block_rollover: bool = True     # skip coins rolling over (h1 & h6 both red)
 
-    # exit rules
-    take_profit_pct: float = 0.45
-    stop_loss_pct: float = 0.18
-    trailing_stop_pct: float = 0.14
-    arm_trailing_after_pct: float = 0.12
-    exit_on_dump_risk: float = 72
+    # exit rules — protect green: breakeven floor + scale-out + tight trailing
+    take_profit_pct: float = 0.45         # let a runner go to +45%
+    stop_loss_pct: float = 0.16           # cut losers a touch faster (was 0.18)
+    trailing_stop_pct: float = 0.10       # give back less from the peak (was 0.14)
+    arm_trailing_after_pct: float = 0.10  # start trailing sooner (was 0.12)
+    breakeven_after_pct: float = 0.08     # once +8%, never let the trade go red
+    partial_tp_pct: float = 0.16          # bank half the position at +16%...
+    partial_tp_fraction: float = 0.5      # ...this fraction (locks a green trade)
+    exit_on_dump_risk: float = 70
     exit_on_momentum_reversal: bool = True
     min_hold_seconds: int = 45
+
+    # risk controls
+    reentry_cooldown_minutes: int = 30    # don't re-buy a coin we just exited
+    max_consecutive_losses: int = 3       # ...then trip the circuit breaker
+    circuit_breaker_minutes: int = 60     # pause auto-entries this long after tripping
+    conviction_sizing: bool = True        # size up on stronger confluence
 
     # wallet intelligence
     whale_min_usd: float = 50000
@@ -69,8 +82,8 @@ class Config:
     cabal_buy_min_wallets: int = 3          # how many wallets must buy together
     cabal_buy_window_seconds: int = 1200    # ...inside this window (<=20 min)
     cabal_buy_require_cabal: bool = True     # only a *known* recurring cabal counts
-    cabal_buy_min_safety: float = 50         # coin must clear this structural safety
-    cabal_buy_max_dump_risk: float = 55      # ...and not be distributing already
+    cabal_buy_min_safety: float = 58         # coin must clear this structural safety
+    cabal_buy_max_dump_risk: float = 45      # ...and not be distributing already
 
     # launchpad — catch pump.fun coins in their first minutes (PumpPortal WS +
     # DexScreener enrichment). Free out of the box (new-coin + migration streams);

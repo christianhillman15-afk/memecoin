@@ -27,14 +27,33 @@ entry_max_dump_risk: 45       # 0-100; refuse to buy into an active distribution
 entry_min_safety: 55          # 0-100; liquidity/age/structure sanity
 entry_require_smart_inflow: true  # require net smart-money buying
 
-# --- Exit rules ("sell before the dump") -------------------------------------
-take_profit_pct: 0.45         # lock in a beautiful profit at +45%
-stop_loss_pct: 0.18           # hard floor at -18%
-trailing_stop_pct: 0.14       # give back at most 14% from the peak
-arm_trailing_after_pct: 0.12  # only start trailing once +12% in profit
-exit_on_dump_risk: 72         # bail if dump risk spikes above this
+# --- Entry rules: HIGH WIN RATE (trade rarely, only A+ confluence) -----------
+entry_min_pump_score: 70      # demand a strong move (was 62)
+entry_max_dump_risk: 28       # refuse anything distributing (was 45)
+entry_min_safety: 68          # only structurally sound coins (was 55)
+entry_require_smart_inflow: true
+entry_min_confluence: 3       # require >= N independent bullish signals to buy
+entry_strong_pump_score: 80   # pump >= this counts as a "strong momentum" signal
+entry_max_h24_pct: 400        # skip already-mooned coins (don't buy the top)
+entry_block_rollover: true    # skip coins rolling over (1h & 6h both red)
+
+# --- Exit rules: protect green (breakeven floor + scale-out + tight trail) ----
+take_profit_pct: 0.45         # let a runner go to +45%
+stop_loss_pct: 0.16           # cut losers a touch faster (was 0.18)
+trailing_stop_pct: 0.10       # give back at most 10% from the peak (was 0.14)
+arm_trailing_after_pct: 0.10  # start trailing once +10% in profit (was 0.12)
+breakeven_after_pct: 0.08     # once +8%, never let the trade close red
+partial_tp_pct: 0.16          # bank half the position at +16%...
+partial_tp_fraction: 0.5      # ...this fraction (locks a green trade in)
+exit_on_dump_risk: 70         # bail if dump risk spikes above this
 exit_on_momentum_reversal: true
 min_hold_seconds: 45          # avoid instant in/out churn
+
+# --- Risk controls -----------------------------------------------------------
+reentry_cooldown_minutes: 30  # don't re-buy a coin we just exited
+max_consecutive_losses: 3     # ...then trip the circuit breaker
+circuit_breaker_minutes: 60   # pause auto-entries this long after tripping
+conviction_sizing: true       # size up on stronger signal confluence
 
 # --- Wallet intelligence -----------------------------------------------------
 whale_min_usd: 50000          # a holder this big counts as a "whale"
@@ -57,8 +76,8 @@ cabal_buy_enabled: true
 cabal_buy_min_wallets: 3       # how many wallets must buy together
 cabal_buy_window_seconds: 1200 # ...inside this window (1200s = 20 min)
 cabal_buy_require_cabal: true  # only a known recurring cabal counts (not any bundle)
-cabal_buy_min_safety: 50       # coin must clear this structural-safety score
-cabal_buy_max_dump_risk: 55    # ...and not already be distributing
+cabal_buy_min_safety: 58       # coin must clear this structural-safety score
+cabal_buy_max_dump_risk: 45    # ...and not already be distributing
 
 # --- Launchpad: catch pump.fun coins in their first minutes -------------------
 # Streams every brand-new pump.fun coin (free PumpPortal websocket), enriches it

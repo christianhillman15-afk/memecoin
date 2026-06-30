@@ -156,6 +156,8 @@ class Position:
     entry_reason: str = ""
     trailing_armed: bool = False
     high_water_pnl_pct: float = 0.0
+    breakeven_armed: bool = False   # once in decent profit, never let it close red
+    partial_taken: bool = False     # scaled out a fraction at the partial-TP level
     entry_context: dict = field(default_factory=dict)  # why we bought (scores/intel)
 
     @property

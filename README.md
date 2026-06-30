@@ -85,10 +85,13 @@ See **“What's real vs simulated”** below for an honest breakdown.
                               FastAPI + WebSocket → Dashboard
 ```
 
-### Entry logic
-A token is bought only when **all** gates pass: strong pump score, acceptable
-dump risk, structural safety (liquidity / age / churn), and net smart-money
-inflow — and never while a confirmed coordinated sell is active.
+### Entry logic — *tuned for win rate (trade rarely, only A+ setups)*
+A token is bought only when the base gates pass (strong pump score, low dump
+risk, high structural safety, net smart-money inflow, not already mooned, not
+rolling over) **and** at least **N independent bullish signals align**
+(*confluence* — strong momentum, smart-money inflow, structural quality, wallet
+interest, volume surge, intact trend). Stronger confluence sizes the position
+up. Never buys while a confirmed coordinated sell is active.
 
 **Cabal-buy** is a second entry path: when a **known cabal** (a recurring group)
 has ≥ N members buy the *same* coin inside a window **and** the coin clears a
@@ -96,15 +99,23 @@ quality gate (safety, dump-risk, not distributing), Trenchr opens a position
 and records *which* cabal and wallets triggered it (shown in **Trade Specs**).
 Tunable in `config.yaml` (`cabal_buy_*`); respects Pause and the position cap.
 
-### Exit logic — *“sell before the dump”*
+### Exit logic — *“sell before the dump” + protect green*
 Evaluated worst-case first, every scan, for every open position:
 
-1. **Stop-loss** — hard floor (default −18%).
+1. **Stop-loss** — hard floor (default −16%).
 2. **Confirmed multi-wallet sell** — ≥ 3 smart wallets dumping ≥ $15k → exit now.
 3. **Dump-risk spike** — detector says distribution is starting → exit.
-4. **Trailing stop** — once +12% in profit, give back at most 14% from the peak.
-5. **Take-profit** — absolute target (default +45%).
-6. **Momentum reversal** — clear roll-over while in profit → bank it.
+4. **Breakeven floor** — once +8% in profit, the trade can never close red (a coin
+   that ticks up then fades is closed at ~entry, not allowed to roll into a loss).
+5. **Scale-out** — bank half the position at +16% (locks a green trade), let the rest run.
+6. **Trailing stop** — once +10% in profit, give back at most 10% from the peak.
+7. **Take-profit** — absolute target (default +45%) for the runner.
+8. **Momentum reversal** — clear roll-over while in profit → bank it.
+
+### Risk controls
+**Re-entry cooldown** (don't re-buy a coin we just exited), a **losing-streak
+circuit breaker** (auto-entries pause after N losses in a row), and
+**conviction-weighted sizing** (bigger size on stronger confluence).
 
 Every entry/exit posts an explained signal to the dashboard feed.
 

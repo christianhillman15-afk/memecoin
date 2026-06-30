@@ -33,13 +33,15 @@ def _intel(inflow=20000, score=40, multi=False, wallets=0, usd=0):
                       multi_sell_usd=usd)
 
 
-def _pos(entry=0.01, last=0.01, opened_ago=300, peak=None, armed=False, value=1000.0):
+def _pos(entry=0.01, last=0.01, opened_ago=300, peak=None, armed=False, value=1000.0,
+         partial=False, be=False):
     # qty must be consistent with the USD deployed at the entry price
     qty = value / entry
     return Position(address="M", symbol="WIF", name="n", url="u", qty=qty,
                     entry_price=entry, entry_value=value, opened_at=now() - opened_ago,
                     peak_price=peak or last, last_price=last,
-                    entry_reason="e", trailing_armed=armed)
+                    entry_reason="e", trailing_armed=armed,
+                    partial_taken=partial, breakeven_armed=be)
 
 
 # ---------------- entries ----------------
@@ -91,9 +93,9 @@ def test_stop_loss_triggers():
 
 
 def test_take_profit_triggers():
-    pos = _pos(entry=0.01, last=0.015)  # +50% > 45% tp
+    pos = _pos(entry=0.01, last=0.015, partial=True)  # +50%, already scaled out
     ex = evaluate_exit(pos, _snap(), _det(), _intel(), CFG)
-    assert ex.exit and "take-profit" in ex.reason
+    assert ex.exit and "take-profit" in ex.reason and ex.fraction == 1.0
 
 
 def test_confirmed_multi_sell_forces_exit():
@@ -109,10 +111,54 @@ def test_dump_risk_spike_forces_exit():
 
 
 def test_trailing_stop_locks_profit():
-    # armed, peaked at 0.015, pulled back to 0.012 -> 20% off peak > 14%
-    pos = _pos(entry=0.01, last=0.012, peak=0.015, armed=True)
+    # armed + already scaled out; peaked at 0.015, pulled back to 0.012 -> 20% off peak
+    pos = _pos(entry=0.01, last=0.012, peak=0.015, armed=True, partial=True)
     ex = evaluate_exit(pos, _snap(), _det(), _intel(), CFG)
     assert ex.exit and "trailing" in ex.reason
+
+
+def test_scale_out_at_partial_tp():
+    pos = _pos(entry=0.01, last=0.0116)  # +16% -> bank half
+    ex = evaluate_exit(pos, _snap(), _det(), _intel(), CFG)
+    assert ex.exit and ex.fraction == CFG.partial_tp_fraction and "scaled out" in ex.reason
+
+
+def test_breakeven_stop_protects_a_runup():
+    # ran up (breakeven armed) then faded back to entry -> close at ~breakeven, not red
+    pos = _pos(entry=0.01, last=0.01, be=True)
+    pos.high_water_pnl_pct = 22.0
+    ex = evaluate_exit(pos, _snap(), _det(), _intel(), CFG)
+    assert ex.exit and "breakeven" in ex.reason and ex.fraction == 1.0
+
+
+def test_update_trailing_arms_breakeven_and_trailing():
+    pos = _pos(entry=0.01, last=0.011)  # +10%
+    update_trailing(pos, CFG)
+    assert pos.trailing_armed and pos.breakeven_armed
+
+
+# ---------------- confluence / extension entry filters ----------------
+def test_entry_rejects_low_confluence():
+    # passes the base gates but only 1 signal aligns -> rejected
+    d = evaluate_entry(_snap(), _det(pump=70, dump=28, safety=68), _intel(score=10), CFG)
+    assert not d.enter and "signals aligned" in d.reason
+
+
+def test_entry_rejects_already_mooned():
+    d = evaluate_entry(_snap(price_change={"m5": 3, "h1": 20, "h6": 35, "h24": 600}),
+                       _det(), _intel(), CFG)
+    assert not d.enter and "mooned" in d.reason
+
+
+def test_entry_rejects_rollover():
+    d = evaluate_entry(_snap(price_change={"m5": -3, "h1": -5, "h6": -10, "h24": 5}),
+                       _det(), _intel(), CFG)
+    assert not d.enter and "rolling over" in d.reason
+
+
+def test_entry_rejects_distribution_phase():
+    d = evaluate_entry(_snap(), _det(phase="distribution"), _intel(), CFG)
+    assert not d.enter
 
 
 def test_trailing_arms_after_threshold():
