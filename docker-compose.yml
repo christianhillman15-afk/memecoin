@@ -1,0 +1,59 @@
+# Trenchr — Docker Compose for a DigitalOcean Droplet (or any Docker host).
+#
+#   cp .env.example .env      # set DASHBOARD_PASSWORD (and optionally HELIUS_API_KEY)
+#   docker compose up -d --build
+#
+# By default the app is published only on the host loopback (127.0.0.1:8000),
+# so it is NOT exposed to the internet. Two ways to reach it:
+#   • SSH tunnel:   ssh -L 8000:127.0.0.1:8000 user@your-droplet   → http://localhost:8000
+#   • Public HTTPS: run the optional Caddy proxy (see the `proxy` profile below)
+#       and point a domain's A-record at the droplet:
+#                   docker compose --profile proxy up -d --build
+#
+# To expose the app directly on the public IP instead (quick, less secure),
+# change the ports mapping to "8000:8000" AND make sure DASHBOARD_PASSWORD is set
+# AND restrict access with a DigitalOcean Cloud Firewall.
+
+services:
+  trenchr:
+    build: .
+    image: trenchr:latest
+    container_name: trenchr
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      MEMEBOT_HOST: "0.0.0.0"
+      MEMEBOT_PORT: "8000"
+      MEMEBOT_DB: "/data/memeradar.db"
+    volumes:
+      - memeradar-data:/data
+    ports:
+      # Bind address is loopback-only by default (private). To expose the
+      # dashboard on the droplet's public IP, set BIND_ADDR=0.0.0.0 in .env
+      # (and set DASHBOARD_PASSWORD + a firewall). See DEPLOY.md.
+      - "${BIND_ADDR:-127.0.0.1}:8000:8000"
+
+  # Optional public HTTPS reverse proxy with login. Enable with:
+  #   docker compose --profile proxy up -d --build
+  # Edit Caddyfile first (set your domain + a bcrypt password hash).
+  caddy:
+    image: caddy:2
+    container_name: trenchr-caddy
+    restart: unless-stopped
+    profiles: ["proxy"]
+    depends_on:
+      - trenchr
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  memeradar-data:
+  caddy-data:
+  caddy-config:

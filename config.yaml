@@ -1,0 +1,140 @@
+# =============================================================================
+# Trenchr configuration
+# All values can be tuned live; secrets come from environment variables (.env).
+# =============================================================================
+
+# --- Universe / data ---------------------------------------------------------
+chain: solana                 # which chain to scan (dexscreener chainId)
+scan_interval_seconds: 25     # how often the scanner loop runs
+universe_size: 45             # max tokens tracked per scan
+min_liquidity_usd: 20000      # ignore illiquid / rug-prone pools
+max_liquidity_usd: 8000000    # ignore mega-caps (not memecoin pumps)
+min_pair_age_minutes: 15      # avoid the first chaotic minutes
+max_pair_age_minutes: 20160   # 14 days — pump/dumps are young coins
+min_volume_h1_usd: 8000       # require real recent activity
+
+# --- Paper trading -----------------------------------------------------------
+starting_balance_usd: 10000   # the requested $10,000 paper bankroll
+max_open_positions: 5         # diversification cap
+position_size_pct: 0.12       # fraction of equity deployed per entry
+max_position_usd: 2500        # hard cap on a single position
+fee_pct: 0.005               # round-trip-ish swap fee assumption (per side)
+slippage_pct: 0.012           # simulated slippage on fills
+
+# --- Entry rules -------------------------------------------------------------
+entry_min_pump_score: 62      # 0-100; how strong the pump signal must be
+entry_max_dump_risk: 45       # 0-100; refuse to buy into an active distribution
+entry_min_safety: 55          # 0-100; liquidity/age/structure sanity
+entry_require_smart_inflow: true  # require net smart-money buying
+
+# --- Entry rules: HIGH WIN RATE (trade rarely, only A+ confluence) -----------
+entry_min_pump_score: 70      # demand a strong move (was 62)
+entry_max_dump_risk: 28       # refuse anything distributing (was 45)
+entry_min_safety: 68          # only structurally sound coins (was 55)
+entry_require_smart_inflow: true
+entry_min_confluence: 3       # require >= N independent bullish signals to buy
+entry_strong_pump_score: 80   # pump >= this counts as a "strong momentum" signal
+entry_max_h24_pct: 400        # skip already-mooned coins (don't buy the top)
+entry_block_rollover: true    # skip coins rolling over (1h & 6h both red)
+
+# --- Exit rules: protect green (breakeven floor + scale-out + tight trail) ----
+take_profit_pct: 0.45         # let a runner go to +45%
+stop_loss_pct: 0.16           # cut losers a touch faster (was 0.18)
+trailing_stop_pct: 0.10       # give back at most 10% from the peak (was 0.14)
+arm_trailing_after_pct: 0.10  # start trailing once +10% in profit (was 0.12)
+breakeven_after_pct: 0.08     # once +8%, never let the trade close red
+partial_tp_pct: 0.16          # bank half the position at +16%...
+partial_tp_fraction: 0.5      # ...this fraction (locks a green trade in)
+exit_on_dump_risk: 70         # bail if dump risk spikes above this
+exit_on_momentum_reversal: true
+min_hold_seconds: 45          # avoid instant in/out churn
+
+# --- Risk controls -----------------------------------------------------------
+reentry_cooldown_minutes: 30  # don't re-buy a coin we just exited
+max_consecutive_losses: 3     # ...then trip the circuit breaker
+circuit_breaker_minutes: 60   # pause auto-entries this long after tripping
+conviction_sizing: true       # size up on stronger signal confluence
+
+# --- Wallet intelligence -----------------------------------------------------
+whale_min_usd: 50000          # a holder this big counts as a "whale"
+insider_early_buy_rank: 25    # bought within first N holders = "insider-like"
+smart_money_min_winrate: 0.55 # historical win-rate to be "smart money"
+multi_sell_window_seconds: 240 # window for clustering coordinated sells
+multi_sell_min_wallets: 3     # only act when >= this many smart wallets dump
+multi_sell_min_usd: 15000     # ...and the combined size is meaningful
+
+# --- Fresh loadouts (young coins a strong team is accumulating) ---------------
+loadout_max_age_minutes: 1440  # "fresh" = launched within ~24h (1440 min)
+loadout_min_score: 45          # 0-100; minimum loadout score to surface a coin
+loadout_ttl_seconds: 240       # drop a loadout if not re-confirmed within this
+
+# --- Cabal-buy: follow coordinated groups into a coin ------------------------
+# When a known cabal (or N coordinated wallets) all buy the SAME coin inside a
+# window, and the coin passes a quality gate, open a paper position. Driven by
+# the bundling/cabal detector. Respects the global Pause and the position cap.
+cabal_buy_enabled: true
+cabal_buy_min_wallets: 3       # how many wallets must buy together
+cabal_buy_window_seconds: 1200 # ...inside this window (1200s = 20 min)
+cabal_buy_require_cabal: true  # only a known recurring cabal counts (not any bundle)
+cabal_buy_min_safety: 58       # coin must clear this structural-safety score
+cabal_buy_max_dump_risk: 45    # ...and not already be distributing
+
+# --- Launchpad: catch pump.fun coins in their first minutes -------------------
+# Streams every brand-new pump.fun coin (free PumpPortal websocket), enriches it
+# with live DexScreener data, and scores its "moonshot" potential. Also tracks
+# creator wallets and which of their coins gain traction / graduate — real,
+# auto-discovered wallet intelligence. A funded PUMPPORTAL_API_KEY (in .env)
+# additionally unlocks the per-trade buyer stream for per-wallet discovery.
+launchpad_enabled: true
+launchpad_max_age_minutes: 30     # a coin is "fresh" for its first 30 min
+launchpad_universe: 60            # max fresh coins enriched per cycle
+launchpad_keep_minutes: 90        # keep coins in memory this long
+moonshot_min_score: 55            # 0-100; surface threshold on the launchpad board
+creator_traction_liq_usd: 18000   # liquidity that counts as a creator "hit"
+creator_traction_vol_usd: 25000   # ...or this much 1h volume
+
+# Trade-stream spend guard (only applies when PUMPPORTAL_API_KEY is set). The
+# per-trade buyer stream is METERED (~0.01 SOL / 10,000 events), so rather than
+# subscribing to every new coin we watch only the strongest few at a time and
+# unsubscribe as they fall out. Lower the cap / raise the score to spend less.
+launchpad_trade_watch_max: 15     # hard cap on coins subscribed for trades at once
+launchpad_trade_min_score: 62     # only spend trade-stream budget on coins >= this
+pumpportal_cost_per_10k_sol: 0.01 # PumpPortal's metering rate, for the cost estimate
+
+# --- Spray mode: tiny auto paper-bets across early candidates -----------------
+# Opt-in. "Put a small amount in each — it either explodes or goes to zero."
+# Sprays a fixed tiny bet across the strongest fresh candidates, then exits on a
+# big multiple, a hard stop, or a stall. All paper, capped, and clearly tagged.
+spray_enabled: false              # master switch (off by default — it churns)
+spray_bet_usd: 25                 # size of each tiny bet
+spray_max_positions: 20           # max concurrent spray bets
+spray_max_total_usd: 600          # total paper capital at risk in spray
+spray_min_score: 70               # only spray the strongest candidates
+spray_min_liquidity_usd: 3000     # need a real market (liquidity or 1h volume) to mark & exit
+spray_take_profit_mult: 3.0       # bank at +200% (3x)
+spray_stop_loss_pct: 0.55         # cut at -55%
+spray_max_hold_minutes: 90        # bail if it stalls
+
+# --- On-chain rug safety (free via the Solana RPC) ---------------------------
+safety_check_authority: true       # fetch mint/freeze authority for each token
+block_unrenounced_authority: true  # refuse to buy if mint/freeze authority is live
+                                   # (dev can mint infinite supply / freeze wallets)
+
+# --- Telegram alerts (tuning; token/chat-ids live in .env) -------------------
+telegram_alerts: true                 # master push-alert switch
+telegram_alert_min_severity: success  # info | success | warning | critical
+                                      # (info = high-frequency entries, off by default)
+telegram_alert_kinds:                 # which signal kinds push by default
+  - dump
+  - multi_sell
+  - whale_buy
+  - exit
+  - bundle
+telegram_alert_cooldown_seconds: 900  # per-(kind,token) dedupe window
+telegram_alert_batch_seconds: 8       # coalesce bursts into one message
+telegram_alert_max_per_minute: 12     # outbound alert rate cap
+telegram_poll_timeout_seconds: 25     # getUpdates long-poll timeout
+
+# --- Engine ------------------------------------------------------------------
+auto_trade: true              # let the strategy open/close paper positions
+log_level: INFO

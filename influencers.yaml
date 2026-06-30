@@ -1,0 +1,51 @@
+# =============================================================================
+# Influencer / KOL wallet watchlist (Influencers tab on the dashboard)
+# =============================================================================
+# IMPORTANT — read this:
+#   There is NO API that reliably maps an X/Twitter handle to a wallet address;
+#   that link is not public data. So this list is intentionally MANUAL. Only add
+#   a `wallet` you have independently verified (e.g. the influencer publicly
+#   posted it, or a tool like GMGN / Nansen labelled it). Do not trust a
+#   handle→wallet mapping you cannot verify.
+#
+#   The entries below are DEMO PLACEHOLDERS (fictional names) so the tab is
+#   populated out of the box. Replace them with real, verified data. Leave
+#   `wallet` blank to have the bot generate a demo address for visualisation.
+# =============================================================================
+
+influencers:
+  - name: "Alpha Caller"
+    handle: "@alpha_caller"
+    followers: 412000
+    wallet: ""
+    notes: "demo placeholder — replace with a verified KOL wallet"
+
+  - name: "Meme Whale"
+    handle: "@meme_whale"
+    followers: 286000
+    wallet: ""
+    notes: "demo placeholder"
+
+  - name: "Solana Sniper"
+    handle: "@sol_sniper"
+    followers: 158000
+    wallet: ""
+    notes: "demo placeholder"
+
+  - name: "Degen Prophet"
+    handle: "@degen_prophet"
+    followers: 521000
+    wallet: ""
+    notes: "demo placeholder"
+
+  - name: "Chart Wizard"
+    handle: "@chart_wizard"
+    followers: 97000
+    wallet: ""
+    notes: "demo placeholder"
+
+  - name: "Pump Hunter"
+    handle: "@pump_hunter"
+    followers: 233000
+    wallet: ""
+    notes: "demo placeholder"

@@ -1,0 +1,41 @@
+# DigitalOcean App Platform spec (ALTERNATIVE to the Droplet/Docker setup).
+#
+# Deploy with the `doctl` CLI:
+#   doctl apps create --spec .do/app.yaml
+# or via the DO dashboard: Apps → Create → "From Source/Dockerfile" and import.
+#
+# ⚠️ PERSISTENCE CAVEAT: App Platform containers have an EPHEMERAL filesystem.
+# The SQLite trade history / equity curve resets on every deploy or restart.
+# For durable paper-trading history, prefer the Droplet + Docker Compose setup
+# (which mounts a persistent volume). Use this spec if you don't mind the book
+# resetting on redeploys, or wire up an attached database in a future revision.
+
+name: trenchr
+region: nyc
+services:
+  - name: web
+    dockerfile_path: Dockerfile
+    github:
+      repo: christianhillman15-afk/memecoin
+      branch: claude/memecoin-pump-dump-bot-jc07ac
+      deploy_on_push: true
+    http_port: 8000
+    instance_size_slug: basic-xxs    # ~$5/mo
+    instance_count: 1
+    health_check:
+      http_path: /api/config
+    envs:
+      - key: MEMEBOT_HOST
+        value: "0.0.0.0"
+      - key: MEMEBOT_PORT
+        value: "8000"
+      # Strongly recommended — protects the dashboard (incl. the Reset button):
+      - key: DASHBOARD_USER
+        value: "admin"
+      - key: DASHBOARD_PASSWORD
+        type: SECRET
+        value: "CHANGE_ME_TO_A_STRONG_PASSWORD"
+      # Optional — real on-chain whale holder data:
+      - key: HELIUS_API_KEY
+        type: SECRET
+        value: ""
