@@ -1,0 +1,44 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"/>
+<style>
+  *{margin:0;padding:0}
+  html,body{width:400px;height:400px;overflow:hidden;background:#04070d}
+  .tile{width:400px;height:400px;position:relative;
+    background:radial-gradient(110% 110% at 50% 50%, #0c1828 0%, #060c16 52%, #03060c 100%)}
+  .tile::after{content:"";position:absolute;inset:0;
+    background:radial-gradient(circle at 50% 50%, transparent 62%, rgba(0,0,0,.5) 100%)}
+  svg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
+</style></head>
+<body>
+  <div class="tile">
+  <svg width="320" height="320" viewBox="0 0 200 200">
+    <defs>
+      <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#22f0ad"/><stop offset="1" stop-color="#37d6d6"/>
+      </linearGradient>
+      <linearGradient id="gt" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#f3fffb"/><stop offset=".5" stop-color="#22f0ad"/>
+        <stop offset="1" stop-color="#17b985"/>
+      </linearGradient>
+      <radialGradient id="sweep" cx="50%" cy="50%" r="50%">
+        <stop offset="0" stop-color="#22f0ad" stop-opacity="0"/>
+        <stop offset="1" stop-color="#22f0ad" stop-opacity=".55"/>
+      </radialGradient>
+      <filter id="glow" x="-70%" y="-70%" width="240%" height="240%">
+        <feGaussianBlur stdDeviation="4" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <filter id="soft"><feGaussianBlur stdDeviation="2.4"/></filter>
+    </defs>
+
+    <!-- soft radar sweep behind the monogram -->
+    <path d="M100,100 L100,20 A80,80 0 0 1 168,60 Z" fill="url(#sweep)" opacity=".8" filter="url(#soft)"/>
+    <!-- ring -->
+    <circle cx="100" cy="100" r="82" fill="none" stroke="url(#g)" stroke-width="11" filter="url(#glow)"/>
+    <!-- bold T monogram -->
+    <g filter="url(#glow)">
+      <rect x="58" y="62" width="84" height="18" rx="6" fill="url(#gt)"/>
+      <rect x="90" y="62" width="20" height="82" rx="6" fill="url(#gt)"/>
+    </g>
+  </svg>
+  </div>
+</body></html>
